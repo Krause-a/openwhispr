@@ -245,9 +245,7 @@ export default function HistoryView({
           <div>
             {groupedHistory.map((group, index) => (
               <div key={group.label} className={index > 0 ? "mt-4" : ""}>
-                <div
-                  className="sticky -top-1 z-10 -mx-4 px-5 pt-2 pb-2 bg-background"
-                >
+                <div className="sticky -top-1 z-10 -mx-4 px-5 pt-2 pb-2 bg-background">
                   <span className="text-[11px] font-semibold text-muted-foreground dark:text-muted-foreground uppercase tracking-wide">
                     {group.label}
                   </span>
