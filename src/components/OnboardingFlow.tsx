@@ -268,6 +268,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     localStorage.setItem("onboardingCompleted", "true");
     localStorage.setItem("skipAuth", skippedAuth.toString());
 
+    // Non-signed-in users in cloud mode default to BYOK to avoid
+    // "OpenWhispr Cloud requires sign-in" errors.
+    if (!isSignedIn && !useLocalWhisper) {
+      updateTranscriptionSettings({ cloudTranscriptionMode: "byok" });
+    }
+
     try {
       await window.electronAPI?.saveAllKeysToEnv?.();
     } catch (error) {
@@ -275,7 +281,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
 
     return true;
-  }, [hotkey, agentName, setDictationKey, ensureHotkeyRegistered]);
+  }, [hotkey, agentName, setDictationKey, ensureHotkeyRegistered, isSignedIn, useLocalWhisper, updateTranscriptionSettings]);
 
   const nextStep = useCallback(async () => {
     if (currentStep >= steps.length - 1) {
@@ -476,7 +482,12 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 })
               }
               useLocalWhisper={useLocalWhisper}
-              onModeChange={(isLocal) => updateTranscriptionSettings({ useLocalWhisper: isLocal })}
+              onModeChange={(isLocal) => {
+                updateTranscriptionSettings({
+                  useLocalWhisper: isLocal,
+                  ...(!isLocal && !isSignedIn ? { cloudTranscriptionMode: "byok" } : {}),
+                });
+              }}
               openaiApiKey={openaiApiKey}
               setOpenaiApiKey={setOpenaiApiKey}
               groqApiKey={groqApiKey}
