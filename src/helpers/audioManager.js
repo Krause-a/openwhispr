@@ -1926,6 +1926,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async saveTranscription(text, rawText = null) {
+    if (!getSettings().dataRetentionEnabled) {
+      logger.debug("Skipping transcription save — data retention disabled", {}, "audio");
+      this.lastAudioBlob = null;
+      this.lastAudioMetadata = null;
+      return true;
+    }
+
     try {
       const result = await window.electronAPI.saveTranscription(text, rawText);
 
@@ -1953,6 +1960,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async saveFailedTranscription(errorMessage, metadata = {}) {
+    if (!getSettings().dataRetentionEnabled) {
+      logger.debug("Skipping failed transcription save — data retention disabled", {}, "audio");
+      this.lastAudioBlob = null;
+      this.lastAudioMetadata = null;
+      return;
+    }
+
     try {
       const result = await window.electronAPI.saveTranscription("", null, {
         status: "failed",

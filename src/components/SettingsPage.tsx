@@ -711,6 +711,8 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setTelemetryEnabled,
     audioRetentionDays,
     setAudioRetentionDays,
+    dataRetentionEnabled,
+    setDataRetentionEnabled,
     customDictionary,
     setCustomDictionary,
   } = useSettings();
@@ -3242,6 +3244,23 @@ EOF`,
                     >
                       {t("settingsPage.privacy.clearAllAudio")}
                     </Button>
+                  </SettingsRow>
+                </SettingsPanelRow>
+              </SettingsPanel>
+            </div>
+
+            {/* Data Retention */}
+            <div className="border-t border-border/40 pt-6">
+              <SettingsPanel>
+                <SettingsPanelRow>
+                  <SettingsRow
+                    label={t("settingsPage.privacy.dataRetention")}
+                    description={t("settingsPage.privacy.dataRetentionDescription")}
+                  >
+                    <Toggle
+                      checked={dataRetentionEnabled}
+                      onChange={setDataRetentionEnabled}
+                    />
                   </SettingsRow>
                 </SettingsPanelRow>
               </SettingsPanel>

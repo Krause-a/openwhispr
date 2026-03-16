@@ -64,6 +64,7 @@ const BOOLEAN_SETTINGS = new Set([
   "isSignedIn",
   "agentEnabled",
   "keepTranscriptionInClipboard",
+  "dataRetentionEnabled",
 ]);
 
 const ARRAY_SETTINGS = new Set(["customDictionary", "gcalAccounts"]);
@@ -145,6 +146,7 @@ export interface SettingsState
   setCloudBackupEnabled: (value: boolean) => void;
   setTelemetryEnabled: (value: boolean) => void;
   setAudioRetentionDays: (days: number) => void;
+  setDataRetentionEnabled: (value: boolean) => void;
   setAudioCuesEnabled: (value: boolean) => void;
   setPauseMediaOnDictation: (value: boolean) => void;
   setFloatingIconAutoHide: (enabled: boolean) => void;
@@ -279,6 +281,7 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
     const parsed = parseInt(stored, 10);
     return isNaN(parsed) ? 30 : parsed;
   })(),
+  dataRetentionEnabled: readBoolean("dataRetentionEnabled", true),
   audioCuesEnabled: readBoolean("audioCuesEnabled", true),
   pauseMediaOnDictation: readBoolean("pauseMediaOnDictation", false),
   floatingIconAutoHide: readBoolean("floatingIconAutoHide", false),
@@ -443,6 +446,17 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setAudioRetentionDays: (days: number) => {
     if (isBrowser) localStorage.setItem("audioRetentionDays", String(days));
     set({ audioRetentionDays: days });
+  },
+  setDataRetentionEnabled: (value: boolean) => {
+    if (isBrowser) localStorage.setItem("dataRetentionEnabled", String(value));
+    set({ dataRetentionEnabled: value });
+    logger.info(
+      value
+        ? "Data retention enabled — transcriptions and audio will be saved"
+        : "Data retention disabled — transcriptions and audio will not be saved",
+      {},
+      "settings"
+    );
   },
   setAudioCuesEnabled: createBooleanSetter("audioCuesEnabled"),
   setPauseMediaOnDictation: createBooleanSetter("pauseMediaOnDictation"),
