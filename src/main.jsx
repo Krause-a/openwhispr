@@ -288,7 +288,7 @@ function AppRouter() {
 }
 
 function MainApp() {
-  const { isSignedIn, isLoaded: authLoaded } = useAuth();
+  const { isSignedIn, isGracePeriodOnly, isLoaded: authLoaded } = useAuth();
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [needsReauth, setNeedsReauth] = useState(false);
@@ -320,8 +320,8 @@ function MainApp() {
       localStorage.getItem("authenticationSkipped") === "true" ||
       localStorage.getItem("skipAuth") === "true";
 
-    // Valid session proves prior onboarding — restore flag if localStorage was wiped
-    const isReturningUser = !onboardingCompleted && isSignedIn;
+    // Actual session (not OAuth grace period) proves prior onboarding — restore flag if localStorage was wiped
+    const isReturningUser = !onboardingCompleted && isSignedIn && !isGracePeriodOnly;
     if (isReturningUser) {
       localStorage.setItem("onboardingCompleted", "true");
     }
@@ -351,7 +351,7 @@ function MainApp() {
     }
 
     setIsLoading(false);
-  }, [isControlPanel, isDictationPanel, isSignedIn, authLoaded]);
+  }, [isControlPanel, isDictationPanel, isSignedIn, isGracePeriodOnly, authLoaded]);
 
   const handleOnboardingComplete = () => {
     setShowOnboarding(false);
