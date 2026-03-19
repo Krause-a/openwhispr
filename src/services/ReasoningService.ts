@@ -1128,6 +1128,9 @@ class ReasoningService extends BaseReasoningService {
         case "groq":
           endpoint = buildApiUrl(API_ENDPOINTS.GROQ_BASE, "/chat/completions");
           break;
+        case "gemini":
+          endpoint = buildApiUrl(API_ENDPOINTS.GEMINI, "/openai/chat/completions");
+          break;
         case "openai":
         case "custom":
           endpoint = buildApiUrl(this.getConfiguredOpenAIBase(), "/chat/completions");
