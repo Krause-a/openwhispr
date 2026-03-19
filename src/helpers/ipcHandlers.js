@@ -2590,6 +2590,7 @@ class IPCHandlers {
         this._meetingMicStreaming = null;
         this._meetingSystemStreaming = null;
         this.openaiRealtimeStreaming = null;
+        meetingSendCounts = { mic: 0, system: 0 };
 
         return {
           success: true,
