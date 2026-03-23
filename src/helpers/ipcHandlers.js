@@ -2487,7 +2487,13 @@ class IPCHandlers {
           { ref: "_meetingSystemStreaming", secret: secrets[1], source: "system" },
         ];
       } else {
-        pairs = [{ ref: "_meetingMicStreaming", secret: await fetchRealtimeToken(event, options), source: "mic" }];
+        pairs = [
+          {
+            ref: "_meetingMicStreaming",
+            secret: await fetchRealtimeToken(event, options),
+            source: "mic",
+          },
+        ];
       }
 
       for (const { ref, source } of pairs) {

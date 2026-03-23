@@ -202,7 +202,11 @@ class MeetingDetectionEngine {
       }
     } catch (error) {
       this._meetingModeActive = false;
-      debugLogger.error("Error handling notification response", { error: error?.message, detectionId, action }, "meeting");
+      debugLogger.error(
+        "Error handling notification response",
+        { error: error?.message, detectionId, action },
+        "meeting"
+      );
     } finally {
       this.windowManager.dismissMeetingNotification();
     }

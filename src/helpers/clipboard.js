@@ -162,9 +162,7 @@ class ClipboardManager {
     }
 
     const possiblePaths = [
-      ...(process.resourcesPath
-        ? [path.join(process.resourcesPath, "bin", "nircmd.exe")]
-        : []),
+      ...(process.resourcesPath ? [path.join(process.resourcesPath, "bin", "nircmd.exe")] : []),
       path.join(__dirname, "..", "..", "resources", "bin", "nircmd.exe"),
       path.join(process.cwd(), "resources", "bin", "nircmd.exe"),
     ];

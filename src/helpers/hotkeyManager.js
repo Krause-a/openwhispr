@@ -211,9 +211,7 @@ class HotkeyManager {
       slot.accelerator = null;
       this.slots.set(slotName, slot);
 
-      debugLogger.log(
-        `[HotkeyManager] KDE slot "${slotName}" set to "${hotkey}"`
-      );
+      debugLogger.log(`[HotkeyManager] KDE slot "${slotName}" set to "${hotkey}"`);
       return { success: true, hotkey };
     }
 
@@ -483,7 +481,11 @@ class HotkeyManager {
   }
 
   async initializeKDEShortcuts(callback) {
-    if (process.platform !== "linux" || !KDEShortcutManager.isWayland() || !KDEShortcutManager.isKDE()) {
+    if (
+      process.platform !== "linux" ||
+      !KDEShortcutManager.isWayland() ||
+      !KDEShortcutManager.isKDE()
+    ) {
       return false;
     }
 
@@ -606,9 +608,7 @@ class HotkeyManager {
             const success = await this.kdeManager.registerKeybinding(hotkey, "dictation", callback);
             if (success) {
               this.currentHotkey = hotkey;
-              debugLogger.log(
-                `[HotkeyManager] KDE hotkey "${hotkey}" registered successfully`
-              );
+              debugLogger.log(`[HotkeyManager] KDE hotkey "${hotkey}" registered successfully`);
             } else {
               debugLogger.log(
                 "[HotkeyManager] KDE keybinding failed, falling back to globalShortcut"

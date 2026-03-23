@@ -25,23 +25,75 @@ const QT_MODIFIERS = {
 };
 
 const QT_KEYS = {
-  a: 0x41, b: 0x42, c: 0x43, d: 0x44, e: 0x45, f: 0x46, g: 0x47, h: 0x48,
-  i: 0x49, j: 0x4a, k: 0x4b, l: 0x4c, m: 0x4d, n: 0x4e, o: 0x4f, p: 0x50,
-  q: 0x51, r: 0x52, s: 0x53, t: 0x54, u: 0x55, v: 0x56, w: 0x57, x: 0x58,
-  y: 0x59, z: 0x5a,
-  0: 0x30, 1: 0x31, 2: 0x32, 3: 0x33, 4: 0x34,
-  5: 0x35, 6: 0x36, 7: 0x37, 8: 0x38, 9: 0x39,
-  f1: 0x01000030, f2: 0x01000031, f3: 0x01000032, f4: 0x01000033,
-  f5: 0x01000034, f6: 0x01000035, f7: 0x01000036, f8: 0x01000037,
-  f9: 0x01000038, f10: 0x01000039, f11: 0x0100003a, f12: 0x0100003b,
-  space: 0x20, tab: 0x01000001, escape: 0x01000000, backspace: 0x01000003,
-  enter: 0x01000005, return: 0x01000004,
-  insert: 0x01000006, delete: 0x01000007,
-  home: 0x01000010, end: 0x01000011,
-  pageup: 0x01000016, pagedown: 0x01000017,
-  up: 0x01000013, down: 0x01000015, left: 0x01000012, right: 0x01000014,
-  "`": 0x60, grave: 0x60,
-  print: 0x01000009, scrolllock: 0x01000026, pause: 0x01000008,
+  a: 0x41,
+  b: 0x42,
+  c: 0x43,
+  d: 0x44,
+  e: 0x45,
+  f: 0x46,
+  g: 0x47,
+  h: 0x48,
+  i: 0x49,
+  j: 0x4a,
+  k: 0x4b,
+  l: 0x4c,
+  m: 0x4d,
+  n: 0x4e,
+  o: 0x4f,
+  p: 0x50,
+  q: 0x51,
+  r: 0x52,
+  s: 0x53,
+  t: 0x54,
+  u: 0x55,
+  v: 0x56,
+  w: 0x57,
+  x: 0x58,
+  y: 0x59,
+  z: 0x5a,
+  0: 0x30,
+  1: 0x31,
+  2: 0x32,
+  3: 0x33,
+  4: 0x34,
+  5: 0x35,
+  6: 0x36,
+  7: 0x37,
+  8: 0x38,
+  9: 0x39,
+  f1: 0x01000030,
+  f2: 0x01000031,
+  f3: 0x01000032,
+  f4: 0x01000033,
+  f5: 0x01000034,
+  f6: 0x01000035,
+  f7: 0x01000036,
+  f8: 0x01000037,
+  f9: 0x01000038,
+  f10: 0x01000039,
+  f11: 0x0100003a,
+  f12: 0x0100003b,
+  space: 0x20,
+  tab: 0x01000001,
+  escape: 0x01000000,
+  backspace: 0x01000003,
+  enter: 0x01000005,
+  return: 0x01000004,
+  insert: 0x01000006,
+  delete: 0x01000007,
+  home: 0x01000010,
+  end: 0x01000011,
+  pageup: 0x01000016,
+  pagedown: 0x01000017,
+  up: 0x01000013,
+  down: 0x01000015,
+  left: 0x01000012,
+  right: 0x01000014,
+  "`": 0x60,
+  grave: 0x60,
+  print: 0x01000009,
+  scrolllock: 0x01000026,
+  pause: 0x01000008,
 };
 
 const COMPONENT_NAME = "openwhispr";
@@ -92,10 +144,7 @@ class KDEShortcutManager {
 
     try {
       this.bus = dbusModule.sessionBus();
-      const proxy = await this.bus.getProxyObject(
-        "org.kde.kglobalaccel",
-        "/kglobalaccel"
-      );
+      const proxy = await this.bus.getProxyObject("org.kde.kglobalaccel", "/kglobalaccel");
       this.kglobalaccel = proxy.getInterface("org.kde.KGlobalAccel");
 
       debugLogger.log("[KDEShortcut] Connected to KGlobalAccel D-Bus");
@@ -113,10 +162,7 @@ class KDEShortcutManager {
 
     try {
       const componentPath = `/component/${COMPONENT_NAME}`;
-      const proxy = await this.bus.getProxyObject(
-        "org.kde.kglobalaccel",
-        componentPath
-      );
+      const proxy = await this.bus.getProxyObject("org.kde.kglobalaccel", componentPath);
       const iface = proxy.getInterface("org.kde.kglobalaccel.Component");
 
       iface.on("globalShortcutPressed", (componentUnique, shortcutUnique, timestamp) => {
@@ -124,12 +170,15 @@ class KDEShortcutManager {
         // Tested on KDE Plasma 6 (Fedora 43): signal sends the actionFriendly
         // name ("OpenWhispr") not the actionUnique ("dictation"). The fallback
         // maps friendly names back to slot names.
-        const callback = this.callbacks.get(shortcutUnique)
-          || this._findCallbackByFriendlyName(shortcutUnique);
+        const callback =
+          this.callbacks.get(shortcutUnique) || this._findCallbackByFriendlyName(shortcutUnique);
         if (callback) {
           callback();
         } else {
-          debugLogger.log("[KDEShortcut] No callback found for", { shortcutUnique, registered: [...this.callbacks.keys()] });
+          debugLogger.log("[KDEShortcut] No callback found for", {
+            shortcutUnique,
+            registered: [...this.callbacks.keys()],
+          });
         }
       });
 
@@ -168,12 +217,7 @@ class KDEShortcutManager {
     }
 
     // actionId: [componentUnique, componentFriendly, actionUnique, actionFriendly]
-    const actionId = [
-      COMPONENT_NAME,
-      "OpenWhispr",
-      slotName,
-      `OpenWhispr ${slotName}`,
-    ];
+    const actionId = [COMPONENT_NAME, "OpenWhispr", slotName, `OpenWhispr ${slotName}`];
 
     try {
       // Register action then set shortcut
@@ -186,7 +230,9 @@ class KDEShortcutManager {
       // Start listening for press events on the component
       const listening = await this._listenForComponent();
       if (!listening) {
-        debugLogger.log(`[KDEShortcut] Keybinding registered but listener failed for "${slotName}"`);
+        debugLogger.log(
+          `[KDEShortcut] Keybinding registered but listener failed for "${slotName}"`
+        );
         return false;
       }
 
@@ -206,12 +252,7 @@ class KDEShortcutManager {
   async unregisterKeybinding(slotName = "dictation") {
     if (!this.kglobalaccel) return;
 
-    const actionId = [
-      COMPONENT_NAME,
-      "OpenWhispr",
-      slotName,
-      `OpenWhispr ${slotName}`,
-    ];
+    const actionId = [COMPONENT_NAME, "OpenWhispr", slotName, `OpenWhispr ${slotName}`];
 
     try {
       await this.kglobalaccel.unRegister(actionId);
@@ -237,7 +278,9 @@ class KDEShortcutManager {
 
     Promise.allSettled(promises).finally(() => {
       if (this.bus) {
-        try { this.bus.disconnect(); } catch {}
+        try {
+          this.bus.disconnect();
+        } catch {}
         this.bus = null;
         this.kglobalaccel = null;
         this.componentProxy = null;
