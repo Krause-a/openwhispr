@@ -94,10 +94,16 @@ export function updateNoteInStore(note: NoteItem): void {
 
 export function removeNote(id: number): void {
   if (id == null) return;
-  const { notes } = useNoteStore.getState();
+  const { notes, activeNoteId } = useNoteStore.getState();
   const next = notes.filter((item) => item.id !== id);
   if (next.length === notes.length) return;
-  useNoteStore.setState({ notes: next });
+  const update: Partial<NoteState> = { notes: next };
+  if (activeNoteId === id) {
+    const idx = notes.findIndex((item) => item.id === id);
+    const neighbor = next[Math.min(idx, next.length - 1)] ?? null;
+    update.activeNoteId = neighbor?.id ?? null;
+  }
+  useNoteStore.setState(update);
 }
 
 export function setActiveNoteId(id: number | null): void {

@@ -128,13 +128,39 @@ export default function PersonalNotesView({
 
   useEffect(() => {
     if (activeNote && activeNote.id !== activeNoteRef.current) {
+      // Flush any pending save for the previous note before switching
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+        if (activeNoteRef.current) {
+          window.electronAPI.updateNote(activeNoteRef.current, {
+            title: localTitleRef.current,
+            content: localContentRef.current,
+          });
+        }
+      }
+      if (enhancedSaveTimeoutRef.current) {
+        clearTimeout(enhancedSaveTimeoutRef.current);
+        enhancedSaveTimeoutRef.current = null;
+      }
       activeNoteRef.current = activeNote.id;
       setLocalTitle(activeNote.title);
       setLocalContent(activeNote.content);
       setLocalEnhancedContent(activeNote.enhanced_content ?? null);
     }
     if (!activeNote) {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
+      if (enhancedSaveTimeoutRef.current) {
+        clearTimeout(enhancedSaveTimeoutRef.current);
+        enhancedSaveTimeoutRef.current = null;
+      }
       activeNoteRef.current = null;
+      setLocalTitle("");
+      setLocalContent("");
+      setLocalEnhancedContent(null);
     }
   }, [activeNote]);
 
@@ -162,35 +188,35 @@ export default function PersonalNotesView({
   const handleTitleChange = useCallback(
     (title: string) => {
       setLocalTitle(title);
-      if (activeNoteId) debouncedSave(activeNoteId, title, localContent);
+      if (activeNoteRef.current)
+        debouncedSave(activeNoteRef.current, title, localContentRef.current);
     },
-    [activeNoteId, localContent, debouncedSave]
+    [debouncedSave]
   );
 
   const handleContentChange = useCallback(
     (content: string) => {
       setLocalContent(content);
-      if (activeNoteId) debouncedSave(activeNoteId, localTitle, content);
+      if (activeNoteRef.current)
+        debouncedSave(activeNoteRef.current, localTitleRef.current, content);
     },
-    [activeNoteId, localTitle, debouncedSave]
+    [debouncedSave]
   );
 
-  const handleEnhancedContentChange = useCallback(
-    (content: string) => {
-      setLocalEnhancedContent(content);
-      if (!activeNoteId) return;
-      if (enhancedSaveTimeoutRef.current) clearTimeout(enhancedSaveTimeoutRef.current);
-      enhancedSaveTimeoutRef.current = setTimeout(async () => {
-        setIsSaving(true);
-        try {
-          await window.electronAPI.updateNote(activeNoteId, { enhanced_content: content });
-        } finally {
-          setIsSaving(false);
-        }
-      }, 1000);
-    },
-    [activeNoteId]
-  );
+  const handleEnhancedContentChange = useCallback((content: string) => {
+    setLocalEnhancedContent(content);
+    if (!activeNoteRef.current) return;
+    const noteId = activeNoteRef.current;
+    if (enhancedSaveTimeoutRef.current) clearTimeout(enhancedSaveTimeoutRef.current);
+    enhancedSaveTimeoutRef.current = setTimeout(async () => {
+      setIsSaving(true);
+      try {
+        await window.electronAPI.updateNote(noteId, { enhanced_content: content });
+      } finally {
+        setIsSaving(false);
+      }
+    }, 1000);
+  }, []);
 
   const handleNewNote = useCallback(async () => {
     if (!activeFolderId) return;
@@ -217,14 +243,14 @@ export default function PersonalNotesView({
 
   const handleDelete = useCallback(
     async (id: number) => {
-      await window.electronAPI.deleteNote(id);
-      if (activeNoteId === id) {
-        const remaining = notes.filter((n) => n.id !== id);
-        setActiveNoteId(remaining.length > 0 ? remaining[0].id : null);
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
       }
+      await window.electronAPI.deleteNote(id);
       loadFolders();
     },
-    [activeNoteId, notes, loadFolders]
+    [loadFolders]
   );
 
   const handleMoveToFolder = useCallback(
