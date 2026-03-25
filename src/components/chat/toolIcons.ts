@@ -1,12 +1,4 @@
-import {
-  Search,
-  Globe,
-  ClipboardCheck,
-  Calendar,
-  FileText,
-  FilePlus,
-  FilePen,
-} from "lucide-react";
+import { Search, Globe, ClipboardCheck, Calendar, FileText, FilePlus, FilePen } from "lucide-react";
 
 export const toolIcons: Record<string, typeof Search> = {
   search_notes: Search,

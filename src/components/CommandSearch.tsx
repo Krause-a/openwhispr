@@ -89,7 +89,15 @@ export default function CommandSearch({
     setSelectedIndex(0);
     if (isConversationsMode) {
       window.electronAPI?.getAgentConversationsWithPreview?.(20, 0, false).then((r) => {
-        if (r) setConversations(r.map((c) => ({ id: c.id, title: c.title || "Untitled", last_message: c.last_message, updated_at: c.updated_at })));
+        if (r)
+          setConversations(
+            r.map((c) => ({
+              id: c.id,
+              title: c.title || "Untitled",
+              last_message: c.last_message,
+              updated_at: c.updated_at,
+            }))
+          );
       });
     } else {
       window.electronAPI
@@ -107,7 +115,14 @@ export default function CommandSearch({
       if (!query.trim()) {
         window.electronAPI?.getAgentConversationsWithPreview?.(20, 0, false).then((r) => {
           if (searchVersionRef.current === version && r) {
-            setConversations(r.map((c) => ({ id: c.id, title: c.title || "Untitled", last_message: c.last_message, updated_at: c.updated_at })));
+            setConversations(
+              r.map((c) => ({
+                id: c.id,
+                title: c.title || "Untitled",
+                last_message: c.last_message,
+                updated_at: c.updated_at,
+              }))
+            );
           }
         });
         return;
@@ -116,9 +131,18 @@ export default function CommandSearch({
         try {
           const r = await window.electronAPI?.semanticSearchConversations?.(query, 20);
           if (searchVersionRef.current === version && r) {
-            setConversations(r.map((c) => ({ id: c.id, title: c.title || "Untitled", last_message: c.last_message, updated_at: c.updated_at })));
+            setConversations(
+              r.map((c) => ({
+                id: c.id,
+                title: c.title || "Untitled",
+                last_message: c.last_message,
+                updated_at: c.updated_at,
+              }))
+            );
           }
-        } catch { /* keep current */ }
+        } catch {
+          /* keep current */
+        }
       }, 200);
     } else {
       if (!query.trim()) {
@@ -132,7 +156,9 @@ export default function CommandSearch({
         try {
           const results = await window.electronAPI.searchNotes(query);
           setNotes(results);
-        } catch { /* keep current */ }
+        } catch {
+          /* keep current */
+        }
       }, 200);
     }
 
@@ -280,7 +306,11 @@ export default function CommandSearch({
             {!hasResults ? (
               <div className="flex items-center justify-center py-10">
                 <p className="text-xs text-muted-foreground/50">
-                  {query.trim() ? t("commandSearch.noResults") : isConversationsMode ? t("chat.noConversations") : t("commandSearch.emptyState")}
+                  {query.trim()
+                    ? t("commandSearch.noResults")
+                    : isConversationsMode
+                      ? t("chat.noConversations")
+                      : t("commandSearch.emptyState")}
                 </p>
               </div>
             ) : isConversationsMode ? (

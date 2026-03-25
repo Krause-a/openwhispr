@@ -747,7 +747,12 @@ class IPCHandlers {
     ipcMain.handle(
       "db-add-agent-message",
       async (event, conversationId, role, content, metadata) => {
-        const result = this.databaseManager.addAgentMessage(conversationId, role, content, metadata);
+        const result = this.databaseManager.addAgentMessage(
+          conversationId,
+          role,
+          content,
+          metadata
+        );
         if (this.vectorIndex?.isReady?.()) {
           const conv = this.databaseManager.getAgentConversation(conversationId);
           if (conv && conv.messages?.length % 3 === 0) {

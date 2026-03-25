@@ -112,7 +112,14 @@ export default function ConversationList({
         window.electronAPI?.getAgentConversationsWithPreview?.(200, 0, false),
         window.electronAPI?.getAgentConversationsWithPreview?.(200, 0, true),
       ]);
-      const toPreview = (c: { id: number; title: string; last_message?: string; created_at: string; updated_at: string; archived_at?: string }) => ({
+      const toPreview = (c: {
+        id: number;
+        title: string;
+        last_message?: string;
+        created_at: string;
+        updated_at: string;
+        archived_at?: string;
+      }) => ({
         id: c.id,
         title: c.title || "Untitled",
         preview: c.last_message,
@@ -120,10 +127,7 @@ export default function ConversationList({
         updated_at: c.updated_at,
         is_archived: !!c.archived_at,
       });
-      setConversations([
-        ...(active ?? []).map(toPreview),
-        ...(archived ?? []).map(toPreview),
-      ]);
+      setConversations([...(active ?? []).map(toPreview), ...(archived ?? []).map(toPreview)]);
     } catch {
       // silently fail
     } finally {

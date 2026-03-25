@@ -124,13 +124,16 @@ export default function ChatView() {
     [activeConversationId, persistence, streaming]
   );
 
-  const handleArchive = useCallback(async (id: number) => {
-    await window.electronAPI?.archiveAgentConversation?.(id);
-    if (activeConversationId === id) {
-      handleNewChat();
-    }
-    setRefreshKey((k) => k + 1);
-  }, [activeConversationId, handleNewChat]);
+  const handleArchive = useCallback(
+    async (id: number) => {
+      await window.electronAPI?.archiveAgentConversation?.(id);
+      if (activeConversationId === id) {
+        handleNewChat();
+      }
+      setRefreshKey((k) => k + 1);
+    },
+    [activeConversationId, handleNewChat]
+  );
 
   const handleDelete = useCallback(
     (id: number) => {
@@ -162,7 +165,8 @@ export default function ChatView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleNewChat]);
 
-  const hasActiveChat = activeConversationId !== null || persistence.messages.length > 0 || isNewChat;
+  const hasActiveChat =
+    activeConversationId !== null || persistence.messages.length > 0 || isNewChat;
 
   return (
     <>
