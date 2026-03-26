@@ -2048,5 +2048,9 @@
     "title": "Permissions Required",
     "description": "OpenWhispr needs a few permissions to work on this computer.",
     "continue": "Continue"
+  },
+  "embeddedChat": {
+    "askPlaceholder": "Ask anything...",
+    "send": "Send"
   }
 }

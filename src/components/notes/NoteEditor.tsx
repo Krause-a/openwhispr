@@ -15,7 +15,7 @@ import { cn } from "../lib/utils";
 import type { NoteItem } from "../../types/electron";
 import type { ActionProcessingState } from "../../hooks/useActionProcessing";
 import ActionProcessingOverlay from "./ActionProcessingOverlay";
-import DictationWidget from "./DictationWidget";
+import NoteBottomBar from "./NoteBottomBar";
 import { normalizeDbDate } from "../../utils/dateFormatting";
 import { parseTranscriptSegments } from "../../utils/parseTranscriptSegments";
 
@@ -60,6 +60,7 @@ interface NoteEditorProps {
   meetingSystemPartial?: string;
   onStopMeetingRecording?: () => void;
   liveTranscript?: string;
+  onAskSubmit?: (text: string) => void;
 }
 
 export default function NoteEditor({
@@ -83,6 +84,7 @@ export default function NoteEditor({
   meetingSystemPartial,
   onStopMeetingRecording,
   liveTranscript,
+  onAskSubmit,
 }: NoteEditorProps) {
   const { t } = useTranslation();
   const [viewMode, setViewMode] = useState<MeetingViewMode>("raw");
@@ -366,13 +368,14 @@ export default function NoteEditor({
           className="absolute bottom-0 left-0 right-0 h-24 pointer-events-none"
           style={{ background: "linear-gradient(to bottom, transparent, var(--color-background))" }}
         />
-        <DictationWidget
+        <NoteBottomBar
           isRecording={isRecording || !!isMeetingRecording}
           isProcessing={isProcessing}
-          onStart={onStartRecording}
-          onStop={
+          onStartRecording={onStartRecording}
+          onStopRecording={
             isMeetingRecording ? (onStopMeetingRecording ?? onStopRecording) : onStopRecording
           }
+          onAskSubmit={onAskSubmit ?? (() => {})}
           actionPicker={isMeetingRecording ? undefined : actionPicker}
         />
       </div>
