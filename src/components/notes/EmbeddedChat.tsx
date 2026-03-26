@@ -1,24 +1,20 @@
-import { useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { X, PanelRight, PanelRightClose } from "lucide-react";
 import { cn } from "../lib/utils";
 import { ChatMessages } from "../chat/ChatMessages";
 import { ChatInput } from "../chat/ChatInput";
-import { useEmbeddedChat } from "../../hooks/useEmbeddedChat";
+import type { Message, AgentState } from "../chat/types";
 
-type EmbeddedChatMode = "hidden" | "floating" | "sidebar";
+export type EmbeddedChatMode = "hidden" | "floating" | "sidebar";
 
 interface EmbeddedChatProps {
   mode: EmbeddedChatMode;
   onModeChange: (mode: EmbeddedChatMode) => void;
-  noteId: number | null;
-  noteTitle: string;
-  noteContent: string;
-  noteTranscript?: string;
-}
-
-export interface EmbeddedChatHandle {
-  sendMessage: (text: string) => Promise<void>;
+  messages: Message[];
+  agentState: AgentState;
+  onTextSubmit: (text: string) => void;
+  onCancel: () => void;
 }
 
 function EmptyState() {
@@ -32,129 +28,112 @@ function EmptyState() {
   );
 }
 
-const EmbeddedChat = forwardRef<EmbeddedChatHandle, EmbeddedChatProps>(
-  function EmbeddedChat(
-    { mode, onModeChange, noteId, noteTitle, noteContent, noteTranscript },
-    ref
-  ) {
-    const { t } = useTranslation();
-    const { messages, agentState, sendMessage, cancelStream } = useEmbeddedChat({
-      noteId,
-      noteTitle,
-      noteContent,
-      noteTranscript,
-    });
+export default function EmbeddedChat({
+  mode,
+  onModeChange,
+  messages,
+  agentState,
+  onTextSubmit,
+  onCancel,
+}: EmbeddedChatProps) {
+  const { t } = useTranslation();
 
-    useImperativeHandle(ref, () => ({ sendMessage }), [sendMessage]);
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape" && mode === "floating") {
+        onModeChange("hidden");
+      }
+    },
+    [mode, onModeChange]
+  );
 
-    // Escape key closes floating panel
-    const handleKeyDown = useCallback(
-      (e: KeyboardEvent) => {
-        if (e.key === "Escape" && mode === "floating") {
-          onModeChange("hidden");
-        }
-      },
-      [mode, onModeChange]
-    );
+  useEffect(() => {
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
 
-    useEffect(() => {
-      document.addEventListener("keydown", handleKeyDown);
-      return () => document.removeEventListener("keydown", handleKeyDown);
-    }, [handleKeyDown]);
+  if (mode === "hidden") return null;
 
-    if (mode === "hidden") return null;
-
-    const handleTextSubmit = (text: string) => {
-      sendMessage(text);
-    };
-
-    const headerContent = (
-      <div className="h-9 flex items-center px-3 shrink-0">
-        <span className="text-xs font-medium text-foreground/50">
-          {t("embeddedChat.title")}
-        </span>
-        <div className="flex-1" />
-        <div className="flex items-center gap-0.5">
-          {mode === "floating" ? (
-            <button
-              onClick={() => onModeChange("sidebar")}
-              className="h-6 w-6 flex items-center justify-center rounded-md text-foreground/25 hover:text-foreground/40 hover:bg-foreground/6 transition-colors"
-              aria-label={t("embeddedChat.dock")}
-            >
-              <PanelRight size={13} />
-            </button>
-          ) : (
-            <button
-              onClick={() => onModeChange("floating")}
-              className="h-6 w-6 flex items-center justify-center rounded-md text-foreground/25 hover:text-foreground/40 hover:bg-foreground/6 transition-colors"
-              aria-label={t("embeddedChat.undock")}
-            >
-              <PanelRightClose size={13} />
-            </button>
-          )}
+  const header = (
+    <div className="h-9 flex items-center px-3 shrink-0">
+      <span className="text-xs font-medium text-foreground/50">
+        {t("embeddedChat.title")}
+      </span>
+      <div className="flex-1" />
+      <div className="flex items-center gap-0.5">
+        {mode === "floating" ? (
           <button
-            onClick={() => onModeChange("hidden")}
+            onClick={() => onModeChange("sidebar")}
             className="h-6 w-6 flex items-center justify-center rounded-md text-foreground/25 hover:text-foreground/40 hover:bg-foreground/6 transition-colors"
-            aria-label={t("embeddedChat.close")}
+            aria-label={t("embeddedChat.dock")}
           >
-            <X size={13} />
+            <PanelRight size={13} />
           </button>
-        </div>
-      </div>
-    );
-
-    if (mode === "floating") {
-      return (
-        <div
-          className={cn(
-            "absolute bottom-20 right-4 z-20",
-            "w-[380px] max-h-[480px] min-h-[200px]",
-            "flex flex-col",
-            "bg-background/95 dark:bg-surface-2/95",
-            "border border-border/20 dark:border-white/8",
-            "rounded-xl",
-            "shadow-elevated",
-            "backdrop-blur-2xl",
-            "animate-[scale-in_200ms_ease-out]"
-          )}
+        ) : (
+          <button
+            onClick={() => onModeChange("floating")}
+            className="h-6 w-6 flex items-center justify-center rounded-md text-foreground/25 hover:text-foreground/40 hover:bg-foreground/6 transition-colors"
+            aria-label={t("embeddedChat.undock")}
+          >
+            <PanelRightClose size={13} />
+          </button>
+        )}
+        <button
+          onClick={() => onModeChange("hidden")}
+          className="h-6 w-6 flex items-center justify-center rounded-md text-foreground/25 hover:text-foreground/40 hover:bg-foreground/6 transition-colors"
+          aria-label={t("embeddedChat.close")}
         >
-          {headerContent}
-          <ChatMessages messages={messages} emptyState={<EmptyState />} />
-          <ChatInput
-            agentState={agentState}
-            partialTranscript=""
-            onTextSubmit={handleTextSubmit}
-            onCancel={cancelStream}
-            showHotkey={false}
-            autoFocus={false}
-          />
-        </div>
-      );
-    }
+          <X size={13} />
+        </button>
+      </div>
+    </div>
+  );
 
-    // sidebar mode
+  const chatContent = (
+    <>
+      {header}
+      <ChatMessages messages={messages} emptyState={<EmptyState />} />
+      <ChatInput
+        agentState={agentState}
+        partialTranscript=""
+        onTextSubmit={onTextSubmit}
+        onCancel={onCancel}
+        showHotkey={false}
+        autoFocus={false}
+      />
+    </>
+  );
+
+  if (mode === "floating") {
     return (
       <div
         className={cn(
-          "w-[340px] shrink-0",
-          "border-l border-border/15 dark:border-white/6",
+          "absolute bottom-20 right-4 z-20",
+          "w-95 max-h-120 min-h-50",
           "flex flex-col",
-          "min-h-0"
+          "bg-background/95 dark:bg-surface-2/95",
+          "border border-border/20 dark:border-white/8",
+          "rounded-xl",
+          "shadow-elevated",
+          "backdrop-blur-2xl",
+          "animate-[scale-in_200ms_ease-out]"
         )}
       >
-        {headerContent}
-        <ChatMessages messages={messages} emptyState={<EmptyState />} />
-        <ChatInput
-          agentState={agentState}
-          partialTranscript=""
-          onTextSubmit={handleTextSubmit}
-          onCancel={cancelStream}
-          showHotkey={false}
-          autoFocus={false}
-        />
+        {chatContent}
       </div>
     );
   }
-);
 
-export default EmbeddedChat;
+  return (
+    <div
+      className={cn(
+        "w-85 shrink-0",
+        "border-l border-border/15 dark:border-white/6",
+        "flex flex-col",
+        "min-h-0"
+      )}
+    >
+      {chatContent}
+    </div>
+  );
+}

@@ -16,11 +16,10 @@ import type { NoteItem } from "../../types/electron";
 import type { ActionProcessingState } from "../../hooks/useActionProcessing";
 import ActionProcessingOverlay from "./ActionProcessingOverlay";
 import NoteBottomBar from "./NoteBottomBar";
-import EmbeddedChat, { type EmbeddedChatHandle } from "./EmbeddedChat";
+import EmbeddedChat, { type EmbeddedChatMode } from "./EmbeddedChat";
+import { useEmbeddedChat } from "../../hooks/useEmbeddedChat";
 import { normalizeDbDate } from "../../utils/dateFormatting";
 import { parseTranscriptSegments } from "../../utils/parseTranscriptSegments";
-
-type EmbeddedChatMode = "hidden" | "floating" | "sidebar";
 
 function formatNoteDate(dateStr: string): string {
   const date = normalizeDbDate(dateStr);
@@ -90,9 +89,14 @@ export default function NoteEditor({
   const { t } = useTranslation();
   const [viewMode, setViewMode] = useState<MeetingViewMode>("raw");
   const [chatMode, setChatMode] = useState<EmbeddedChatMode>("hidden");
-  const embeddedChatRef = useRef<EmbeddedChatHandle>(null);
-  const pendingAskRef = useRef<string | null>(null);
   const editorRef = useRef<Editor | null>(null);
+
+  const embeddedChat = useEmbeddedChat({
+    noteId: note.id,
+    noteTitle: note.title,
+    noteContent: note.content,
+    noteTranscript: note.transcript,
+  });
   const titleRef = useRef<HTMLDivElement>(null);
   const prevNoteIdRef = useRef<number>(note.id);
 
@@ -216,24 +220,12 @@ export default function NoteEditor({
     [enhancement]
   );
 
-  // Handle ask submit from NoteBottomBar: open chat + send message
   const handleAskSubmit = useCallback((text: string) => {
     if (chatMode === "hidden") {
-      pendingAskRef.current = text;
       setChatMode("floating");
-    } else {
-      embeddedChatRef.current?.sendMessage(text);
     }
-  }, [chatMode]);
-
-  // Send pending message once EmbeddedChat mounts
-  useEffect(() => {
-    if (chatMode !== "hidden" && pendingAskRef.current && embeddedChatRef.current) {
-      const text = pendingAskRef.current;
-      pendingAskRef.current = null;
-      embeddedChatRef.current.sendMessage(text);
-    }
-  }, [chatMode]);
+    embeddedChat.sendMessage(text);
+  }, [chatMode, embeddedChat]);
 
   const wordCount = useMemo(() => {
     const trimmed = note.content.trim();
@@ -404,25 +396,23 @@ export default function NoteEditor({
           />
           {chatMode === "floating" && (
             <EmbeddedChat
-              ref={embeddedChatRef}
               mode="floating"
               onModeChange={setChatMode}
-              noteId={note.id}
-              noteTitle={note.title}
-              noteContent={note.content}
-              noteTranscript={note.transcript}
+              messages={embeddedChat.messages}
+              agentState={embeddedChat.agentState}
+              onTextSubmit={embeddedChat.sendMessage}
+              onCancel={embeddedChat.cancelStream}
             />
           )}
         </div>
         {chatMode === "sidebar" && (
           <EmbeddedChat
-            ref={embeddedChatRef}
             mode="sidebar"
             onModeChange={setChatMode}
-            noteId={note.id}
-            noteTitle={note.title}
-            noteContent={note.content}
-            noteTranscript={note.transcript}
+            messages={embeddedChat.messages}
+            agentState={embeddedChat.agentState}
+            onTextSubmit={embeddedChat.sendMessage}
+            onCancel={embeddedChat.cancelStream}
           />
         )}
       </div>
