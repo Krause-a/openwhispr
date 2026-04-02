@@ -136,7 +136,6 @@ export interface SettingsState
   setCustomReasoningApiKey: (key: string) => void;
 
   setDictationKey: (key: string) => void;
-  setCancelKey: (key: string) => void;
   setMeetingKey: (key: string) => void;
   setActivationMode: (mode: "tap" | "push") => void;
 
@@ -260,7 +259,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   customReasoningApiKey: readString("customReasoningApiKey", ""),
 
   dictationKey: readString("dictationKey", ""),
-  cancelKey: readString("cancelKey", "Escape"),
   meetingKey: readString("meetingKey", ""),
   activationMode: (readString("activationMode", "tap") === "push" ? "push" : "tap") as
     | "tap"
@@ -423,11 +421,6 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setMeetingKey: (key: string) => {
     if (isBrowser) localStorage.setItem("meetingKey", key);
     set({ meetingKey: key });
-  },
-
-  setCancelKey: (key: string) => {
-    if (isBrowser) localStorage.setItem("cancelKey", key);
-    set({ cancelKey: key });
   },
 
   setActivationMode: (mode: "tap" | "push") => {

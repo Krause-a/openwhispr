@@ -32,7 +32,6 @@ export interface ReasoningSettings {
 
 export interface HotkeySettings {
   dictationKey: string;
-  cancelKey: string;
   meetingKey: string;
   activationMode: "tap" | "push";
 }
@@ -191,7 +190,6 @@ function useSettingsInternal() {
     groqApiKey: store.groqApiKey,
     mistralApiKey: store.mistralApiKey,
     dictationKey: store.dictationKey,
-    cancelKey: store.cancelKey,
     meetingKey: store.meetingKey,
     theme: store.theme,
     setUseLocalWhisper: store.setUseLocalWhisper,
@@ -223,7 +221,6 @@ function useSettingsInternal() {
     customReasoningApiKey: store.customReasoningApiKey,
     setCustomReasoningApiKey: store.setCustomReasoningApiKey,
     setDictationKey: store.setDictationKey,
-    setCancelKey: store.setCancelKey,
     setMeetingKey: store.setMeetingKey,
     setTheme: store.setTheme,
     activationMode: store.activationMode,

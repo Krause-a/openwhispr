@@ -1172,9 +1172,7 @@
         "activationMode": "激活模式",
         "description": "用于开始和停止语音听写的组合键",
         "resetToDefault": "重置为 {{hotkey}}",
-        "title": "听写快捷键",
-        "cancelTitle": "取消快捷键",
-        "cancelDescription": "取消进行中录音的按键"
+        "title": "听写快捷键"
       },
       "meetingHotkey": {
         "title": "会议模式快捷键",

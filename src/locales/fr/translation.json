@@ -1172,9 +1172,7 @@
         "activationMode": "Mode d'activation",
         "description": "La combinaison de touches qui démarre et arrête la dictée vocale",
         "resetToDefault": "Réinitialiser à {{hotkey}}",
-        "title": "Raccourci de dictée",
-        "cancelTitle": "Raccourci d'annulation",
-        "cancelDescription": "Touche pour annuler un enregistrement en cours"
+        "title": "Raccourci de dictée"
       },
       "meetingHotkey": {
         "title": "Raccourci mode réunion",

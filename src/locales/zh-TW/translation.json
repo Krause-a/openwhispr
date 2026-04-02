@@ -1172,9 +1172,7 @@
         "activationMode": "啟用模式",
         "description": "用來開始和停止語音輸入的組合鍵",
         "resetToDefault": "重置為 {{hotkey}}",
-        "title": "語音輸入快捷鍵",
-        "cancelTitle": "取消快捷鍵",
-        "cancelDescription": "取消進行中錄音的按鍵"
+        "title": "語音輸入快捷鍵"
       },
       "meetingHotkey": {
         "title": "會議模式快捷鍵",

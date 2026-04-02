@@ -1172,9 +1172,7 @@
         "activationMode": "Aktivierungsmodus",
         "description": "Die Tastenkombination, die das Sprachdiktat startet und stoppt",
         "resetToDefault": "Auf {{hotkey}} zurücksetzen",
-        "title": "Diktat-Hotkey",
-        "cancelTitle": "Abbrechen-Taste",
-        "cancelDescription": "Taste zum Abbrechen einer laufenden Aufnahme"
+        "title": "Diktat-Hotkey"
       },
       "meetingHotkey": {
         "title": "Meeting-Modus-Hotkey",

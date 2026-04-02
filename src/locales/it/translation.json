@@ -1172,9 +1172,7 @@
         "activationMode": "Modalità di attivazione",
         "description": "La combinazione di tasti che avvia e ferma la dettatura vocale",
         "resetToDefault": "Ripristina a {{hotkey}}",
-        "title": "Scorciatoia di dettatura",
-        "cancelTitle": "Tasto di annullamento",
-        "cancelDescription": "Tasto per annullare una registrazione in corso"
+        "title": "Scorciatoia di dettatura"
       },
       "meetingHotkey": {
         "title": "Scorciatoia modalità meeting",

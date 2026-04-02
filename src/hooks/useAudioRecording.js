@@ -43,7 +43,7 @@ export const useAudioRecording = (toast, options = {}) => {
         if (getSettings().pauseMediaOnDictation) {
           window.electronAPI?.pauseMediaPlayback?.();
         }
-        window.electronAPI?.registerCancelHotkey?.(getSettings().cancelKey || "Escape");
+        window.electronAPI?.registerCancelHotkey?.("Escape");
         void playStartCue();
       }
 
