@@ -588,6 +588,7 @@ async function startApp() {
   const startMinimized = environmentManager.getStartMinimized();
   if (debugLogger) debugLogger.info("Start minimized", { enabled: startMinimized });
   await windowManager.createMainWindow();
+debugLogger.info("Main window created, hotkey initialization should begin");
   if (!startMinimized) {
     await windowManager.createControlPanelWindow();
   }

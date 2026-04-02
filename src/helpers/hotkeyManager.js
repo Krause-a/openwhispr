@@ -496,11 +496,26 @@ class HotkeyManager {
   }
 
   async initializeGnomeShortcuts(callback) {
-    if (process.platform !== "linux" || !GnomeShortcutManager.isWayland()) {
-      return false;
-    }
+if (process.platform !== "linux" || !GnomeShortcutManager.isWayland()) {
+  debugLogger.info("[HotkeyManager] Skipping GNOME shortcuts - not Linux Wayland", {
+    platform: process.platform,
+    isWayland: GnomeShortcutManager.isWayland()
+  });
+  return false;
+}
+const isGnome = GnomeShortcutManager.isGnome();
+debugLogger.info("[HotkeyManager] GNOME detection", {
+  isGnome,
+  desktopEnv: [process.env.XDG_CURRENT_DESKTOP, process.env.XDG_SESSION_DESKTOP, process.env.DESKTOP_SESSION]
+    .filter(Boolean)
+    .join(":")
+});
+if (!isGnome) {
+  debugLogger.info("[HotkeyManager] Not GNOME, skipping GNOME shortcuts");
+  return false;
+}
 
-    if (GnomeShortcutManager.isGnome()) {
+
       try {
         this.gnomeManager = new GnomeShortcutManager();
 
@@ -515,20 +530,19 @@ class HotkeyManager {
         this.gnomeManager = null;
         this.useGnome = false;
       }
-    }
 
-    return false;
+    return true;
   }
 
   async initializeKDEShortcuts(callback) {
-    if (
-      process.platform !== "linux" ||
-      !KDEShortcutManager.isWayland() ||
-      !KDEShortcutManager.isKDE()
-    ) {
-      return false;
-    }
-
+if (process.platform !== "linux" || !KDEShortcutManager.isWayland() || !KDEShortcutManager.isKDE()) {
+  debugLogger.info("[HotkeyManager] Skipping KDE shortcuts", {
+    isLinux: process.platform === "linux",
+    isWayland: KDEShortcutManager.isWayland(),
+    isKDE: KDEShortcutManager.isKDE()
+  });
+  return false;
+}
     try {
       this.kdeManager = new KDEShortcutManager();
       const ok = await this.kdeManager.init();
@@ -561,9 +575,14 @@ class HotkeyManager {
       XDG_CURRENT_DESKTOP: process.env.XDG_CURRENT_DESKTOP || "(unset)",
     });
 
-    if (!isLinux || !isWayland) {
-      return false;
-    }
+	if (!isLinux || !isWayland) {
+	  debugLogger.info("[HotkeyManager] Skipping Hyprland - not Linux Wayland", { isLinux, isWayland });
+	  return false;
+	}
+	if (!isHyprland) {
+	  debugLogger.info("[HotkeyManager] Not Hyprland, skipping Hyprland shortcuts");
+	  return false;
+	}
 
     if (isHyprland) {
       if (!HyprlandShortcutManager.isHyprctlAvailable()) {
@@ -592,9 +611,19 @@ class HotkeyManager {
   }
 
   async initializeGenericWaylandShortcuts(callback) {
-    if (process.platform !== "linux" || !WaylandShortcutManager.isWayland()) {
-      return false;
-    }
+debugLogger.info("[HotkeyManager] Attempting generic Wayland shortcuts", {
+  platform: process.platform,
+  isWayland: WaylandShortcutManager.isWayland(),
+  xdgSessionType: process.env.XDG_SESSION_TYPE,
+  waylandDisplay: process.env.WAYLAND_DISPLAY
+});
+  if (process.platform !== "linux" || !WaylandShortcutManager.isWayland()) {
+	  debugLogger.info("[HotkeyManager] Skipping generic Wayland - not Linux Wayland", {
+		  platform: process.platform,
+		  isWayland: WaylandShortcutManager.isWayland()
+	  });
+	  return false;
+  }
 
     // Don't initialize if we already have a specific DE manager working
     if (this.useGnome || this.useKDE || this.useHyprland) {
@@ -623,6 +652,13 @@ class HotkeyManager {
   }
 
   async initializeHotkey(mainWindow, callback) {
+debugLogger.info("[HotkeyManager] initializeHotkey() called", {
+  platform: process.platform,
+  xdgSessionType: process.env.XDG_SESSION_TYPE,
+  xdgCurrentDesktop: process.env.XDG_CURRENT_DESKTOP,
+  waylandDisplay: process.env.WAYLAND_DISPLAY,
+  isXWayland: process.argv.includes("--ozone-platform=x11")
+});
     if (!mainWindow || !callback) {
       throw new Error("mainWindow and callback are required");
     }
@@ -632,6 +668,12 @@ class HotkeyManager {
 
     // On XWayland, skip D-Bus shortcut managers — globalShortcut works via X11.
     const isXWayland = process.argv.includes("--ozone-platform=x11");
+const isWayland = GnomeShortcutManager.isWayland();
+debugLogger.info("[HotkeyManager] Wayland detection", {
+  isWayland,
+  isLinux: process.platform === "linux",
+  willEnterWaylandBranch: process.platform === "linux" && isWayland && !isXWayland
+});
     if (process.platform === "linux" && GnomeShortcutManager.isWayland() && !isXWayland) {
       const gnomeOk = await this.initializeGnomeShortcuts(callback);
 
@@ -749,6 +791,7 @@ class HotkeyManager {
 
       // Try generic Wayland D-Bus service for compositors without specific DE integration
       const genericWaylandOk = await this.initializeGenericWaylandShortcuts(callback);
+	  debugLogger.log("GOT TO genericWaylandOk");
 
       if (genericWaylandOk) {
         debugLogger.log("[HotkeyManager] Generic Wayland D-Bus service active");

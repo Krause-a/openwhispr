@@ -42,8 +42,13 @@ class WaylandShortcutManager {
    * Unlike isGnome()/isKDE()/isHyprland(), this is generic.
    */
   static isWayland() {
-    return process.env.XDG_SESSION_TYPE === "wayland";
-  }
+const result = process.env.XDG_SESSION_TYPE === "wayland";
+  debugLogger.info("[WaylandShortcut] isWayland check:", {
+    result,
+    xdgSessionType: process.env.XDG_SESSION_TYPE,
+    waylandDisplay: process.env.WAYLAND_DISPLAY
+  });
+  return result;  }
 
   /**
    * Initialize a D-Bus service to receive Toggle() and ToggleAgent() calls.
@@ -56,11 +61,12 @@ class WaylandShortcutManager {
   async initDBusService(dictationCallback) {
     this.dictationCallback = dictationCallback;
 
-    const dbusModule = getDBus();
-    if (!dbusModule) {
-      debugLogger.log("[WaylandShortcut] D-Bus module not available, skipping generic Wayland D-Bus init");
-      return false;
-    }
+const dbusModule = getDBus();
+if (!dbusModule) {
+  debugLogger.error("[WaylandShortcut] D-Bus module (dbus-next) not available");
+  return false;
+}
+debugLogger.info("[WaylandShortcut] D-Bus module loaded successfully");
 
     try {
       this.bus = dbusModule.sessionBus();
@@ -77,7 +83,7 @@ class WaylandShortcutManager {
 
       return true;
     } catch (err) {
-      debugLogger.log("[WaylandShortcut] Failed to initialize D-Bus service:", err.message);
+      debugLogger.log("[WaylandShortcut] Failed to initialize D-Bus service:", err);
       if (this.bus) {
         this.bus.disconnect();
         this.bus = null;
