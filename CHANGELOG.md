@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Save Notes as Files**: Export notes to the local filesystem as Markdown files, mirroring folder hierarchy
+- **Responsive Settings Dialog**: Settings dialog adapts to narrow windows — sidebar collapses to icon rail, rows stack vertically, plan grid reflows
+
 ## [1.6.7] - 2026-04-02
 
 ### Added
