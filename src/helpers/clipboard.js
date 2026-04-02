@@ -1065,8 +1065,8 @@ class ClipboardManager {
     const webContents = options.webContents;
     const xdotoolExists = this.commandExists("xdotool");
     const wtypeExists = this.commandExists("wtype");
-    const ydotoolExists = this.commandExists("ydotool");
-    const ydotoolDaemonRunning = ydotoolExists && this._isYdotoolDaemonRunning();
+    const ydotoolExists = false;
+    const ydotoolDaemonRunning = false;
     const linuxFastPaste = this.resolveLinuxFastPasteBinary();
 
     debugLogger.debug(
@@ -1423,19 +1423,19 @@ class ClipboardManager {
         ]
       : [];
     const xdotoolEntry = canUseXdotool ? [{ cmd: "xdotool", args: xdotoolArgs }] : [];
-    const ydotoolEntry = canUseYdotool ? [{ cmd: "ydotool", args: ydotoolArgs }] : [];
+    const ydotoolEntry = [];
 
     // Compositor-aware priority ordering
     let candidates;
     if (!isWayland) {
-      // X11: xdotool is native and needs no daemon; ydotool as fallback
-      candidates = [...xdotoolEntry, ...ydotoolEntry];
+      // X11: xdotool is native and needs no daemon
+      candidates = [...xdotoolEntry];
     } else if (isWlroots) {
-      // wlroots (Sway, Hyprland, etc.): wtype is native; then xdotool for XWayland; ydotool last; wtype-paste script as final fallback
-      candidates = [...wtypeEntry, ...xdotoolEntry, ...ydotoolEntry, ...wtypePasteEntry];
+      // wlroots (Sway, Hyprland, etc.): wtype is native; then xdotool for XWayland; wtype-paste script as final fallback
+      candidates = [...wtypeEntry, ...xdotoolEntry, ...wtypePasteEntry];
     } else {
-      // GNOME, KDE, or unknown Wayland: ydotool (uinput) works for all windows; xdotool for XWayland only; wtype-paste script as final fallback
-      candidates = [...ydotoolEntry, ...xdotoolEntry, ...wtypeEntry, ...wtypePasteEntry];
+      // GNOME, KDE, or unknown Wayland: xdotool for XWayland only; wtype-paste script as final fallback
+      candidates = [...xdotoolEntry, ...wtypeEntry, ...wtypePasteEntry];
     }
 
     const available = candidates.filter((c) => this.commandExists(c.cmd));
@@ -1607,18 +1607,18 @@ class ClipboardManager {
     let errorMsg;
     if (isWayland) {
       if (isGnome || isKde) {
-        if (!xwaylandAvailable && !ydotoolDaemonRunning) {
+        if (!xwaylandAvailable) {
           errorMsg =
-            "Clipboard copied, but automatic pasting on Wayland requires xdotool (with XWayland) or ydotool (with ydotoold daemon running). Please paste manually with Ctrl+V.";
-        } else if (!xdotoolExists && !ydotoolDaemonRunning) {
+            "Clipboard copied, but automatic pasting on Wayland requires xdotool (with XWayland). Please install xdotool or paste manually with Ctrl+V.";
+        } else if (!xdotoolExists) {
           errorMsg =
-            "Clipboard copied, but automatic pasting requires xdotool (recommended) or ydotool. Please install xdotool or paste manually with Ctrl+V.";
+            "Clipboard copied, but automatic pasting requires xdotool. Please install xdotool or paste manually with Ctrl+V.";
         } else {
           errorMsg =
             "Clipboard copied, but paste simulation failed. Please paste manually with Ctrl+V.";
         }
       } else if (isWlroots) {
-        if (!wtypeExists && !xdotoolExists && !ydotoolDaemonRunning) {
+        if (!wtypeExists && !xdotoolExists) {
           errorMsg =
             "Clipboard copied, but automatic pasting requires wtype (recommended for your compositor) or xdotool. Please install one or paste manually with Ctrl+V.";
         } else {
@@ -1632,11 +1632,6 @@ class ClipboardManager {
     } else {
       errorMsg =
         "Clipboard copied, but paste simulation failed on X11. Please install xdotool or paste manually with Ctrl+V.";
-    }
-
-    if (ydotoolExists && !ydotoolDaemonRunning) {
-      errorMsg +=
-        "\n\nNote: ydotool is installed but the ydotoold daemon is not running. Start it with: sudo systemctl enable --now ydotool";
     }
 
     const err = new Error(errorMsg + failureSummary);
@@ -1830,19 +1825,15 @@ Would you like to open System Settings now?`;
 
     const tools = [];
     const canUseWtype = isWayland && isWlroots;
-    const canUseYdotool = this.commandExists("ydotool") && this._isYdotoolDaemonRunning();
     const canUseXdotool = !isWayland || xwaylandAvailable;
 
     if (!isWayland) {
       if (canUseXdotool && this.commandExists("xdotool")) tools.push("xdotool");
-      if (canUseYdotool) tools.push("ydotool");
     } else if (isWlroots) {
       if (canUseWtype && this.commandExists("wtype")) tools.push("wtype");
       if (canUseXdotool && this.commandExists("xdotool")) tools.push("xdotool");
-      if (canUseYdotool) tools.push("ydotool");
     } else {
       if (canUseXdotool && this.commandExists("xdotool")) tools.push("xdotool");
-      if (canUseYdotool) tools.push("ydotool");
       if (canUseWtype && this.commandExists("wtype")) tools.push("wtype");
     }
 

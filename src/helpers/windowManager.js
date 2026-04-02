@@ -480,6 +480,15 @@ class WindowManager {
   }
 
   async initializeHotkey() {
+    // Check for user override to force D-Bus even on X11
+    const settings = require('./settings').default;
+    const forceDBus = settings?.get('enableDBusService') === true;
+
+    if (forceDBus) {
+      debugLogger.log("[WindowManager] User setting 'enableDBusService' enabled - forcing D-Bus initialization regardless of session type");
+      // Continue to D-Bus initialization even if not Wayland
+    }
+
     await this.hotkeyManager.initializeHotkey(this.mainWindow, this.createHotkeyCallback());
   }
 

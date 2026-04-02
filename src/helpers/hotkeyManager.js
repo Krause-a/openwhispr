@@ -625,10 +625,20 @@ debugLogger.info("[HotkeyManager] Attempting generic Wayland shortcuts", {
 	  return false;
   }
 
-    // Don't initialize if we already have a specific DE manager working
-    if (this.useGnome || this.useKDE || this.useHyprland) {
-      debugLogger.log("[HotkeyManager] Skipping generic Wayland - already using DE-specific shortcuts");
+    // Check if user has explicitly enabled D-Bus via settings
+    const settings = require('./settings').default;
+    const forceDBus = settings?.get('enableDBusService') === true;
+
+    // Allow initialization if:
+    // 1. No DE-specific manager is active, OR
+    // 2. User has explicitly enabled D-Bus service in settings
+    if ((this.useGnome || this.useKDE || this.useHyprland) && !forceDBus) {
+      debugLogger.log("[HotkeyManager] DE-specific shortcuts active, skipping D-Bus (enable 'enableDBusService' setting to force)");
       return false;
+    }
+
+    if (forceDBus) {
+      debugLogger.log("[HotkeyManager] User setting 'enableDBusService' enabled - forcing D-Bus initialization despite DE-specific shortcuts");
     }
 
     try {
@@ -674,7 +684,7 @@ debugLogger.info("[HotkeyManager] Wayland detection", {
   isLinux: process.platform === "linux",
   willEnterWaylandBranch: process.platform === "linux" && isWayland && !isXWayland
 });
-    if (process.platform === "linux" && GnomeShortcutManager.isWayland() && !isXWayland) {
+    if (process.platform === "linux" && GnomeShortcutManager.isWayland()) {
       const gnomeOk = await this.initializeGnomeShortcuts(callback);
 
       if (gnomeOk) {
@@ -789,6 +799,9 @@ debugLogger.info("[HotkeyManager] Wayland detection", {
         return;
       }
 
+      // After DE-specific initialization attempts
+      debugLogger.log("[HotkeyManager] DE-specific initialization complete, checking for generic Wayland D-Bus fallback");
+
       // Try generic Wayland D-Bus service for compositors without specific DE integration
       const genericWaylandOk = await this.initializeGenericWaylandShortcuts(callback);
 	  debugLogger.log("GOT TO genericWaylandOk");
@@ -813,6 +826,7 @@ debugLogger.info("[HotkeyManager] Wayland detection", {
     }
 
     if (process.platform === "linux") {
+		debugLogger.info("[HotkeyManager] Falling back to globalShortcut (not Wayland or all D-Bus init failed)");
       globalShortcut.unregisterAll();
     }
 
