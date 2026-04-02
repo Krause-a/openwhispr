@@ -163,13 +163,15 @@ async function ensureYdotool() {
   if (missing.length > 0) {
     const detail = missing.join("\n\n");
     log.warn("ydotool setup incomplete", { missing: missing.length }, "clipboard");
+    log.debug("ydotool warnings disabled - using alternative paste methods", {}, "clipboard");
 
-    dialog.showMessageBox({
-      type: "warning",
-      title: "Wayland Paste Setup",
-      message: "ydotool is not fully configured. Auto-paste on Wayland may not work.",
-      detail: `The following issues were detected:\n\n${detail}\n\nAfter fixing, restart OpenWhispr.`,
-    });
+    // Warning dialog disabled - app will use wtype or other paste methods instead
+    // dialog.showMessageBox({
+    //   type: "warning",
+    //   title: "Wayland Paste Setup",
+    //   message: "ydotool is not fully configured. Auto-paste on Wayland may not work.",
+    //   detail: `The following issues were detected:\n\n${detail}\n\nAfter fixing, restart OpenWhispr.`,
+    // });
   }
 }
 

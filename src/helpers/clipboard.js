@@ -80,6 +80,8 @@ class ClipboardManager {
     this.winFastPasteChecked = false;
     this.linuxFastPastePath = null;
     this.linuxFastPasteChecked = false;
+    this.wtypePastePath = null;
+    this.wtypePasteChecked = false;
     this.portalDenied = false;
     this._kwinScriptPath = null;
 
@@ -263,6 +265,51 @@ class ClipboardManager {
       "linuxFastPasteChecked",
       "linuxFastPastePath"
     );
+  }
+
+  resolveWtypePasteScript() {
+    if (this.wtypePasteChecked) {
+      return this.wtypePastePath;
+    }
+    this.wtypePasteChecked = true;
+
+    if (process.platform !== "linux") {
+      return null;
+    }
+
+    const candidates = new Set([
+      path.join(__dirname, "..", "..", "resources", "linux-wtype-paste.sh"),
+      path.join(__dirname, "..", "..", "..", "resources", "linux-wtype-paste.sh"),
+    ]);
+
+    if (process.resourcesPath) {
+      [
+        path.join(process.resourcesPath, "linux-wtype-paste.sh"),
+        path.join(process.resourcesPath, "resources", "linux-wtype-paste.sh"),
+        path.join(process.resourcesPath, "app.asar.unpacked", "resources", "linux-wtype-paste.sh"),
+      ].forEach((candidate) => candidates.add(candidate));
+    }
+
+    for (const candidate of candidates) {
+      try {
+        const stats = fs.statSync(candidate);
+        if (stats.isFile()) {
+          try {
+            fs.accessSync(candidate, fs.constants.X_OK);
+          } catch {
+            fs.chmodSync(candidate, 0o755);
+          }
+          this.wtypePastePath = candidate;
+          debugLogger.debug("Found wtype-paste script", { path: candidate }, "clipboard");
+          return candidate;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    debugLogger.debug("wtype-paste script not found", {}, "clipboard");
+    return null;
   }
 
   _isYdotoolDaemonRunning() {
@@ -1363,6 +1410,18 @@ class ClipboardManager {
       wtypeArgs = ["-M", "ctrl", "-k", "v", "-m", "ctrl"];
     }
     const wtypeEntry = canUseWtype ? [{ cmd: "wtype", args: wtypeArgs }] : [];
+
+    // Add wtype-paste script as fallback for Wayland
+    const wtypePasteScript = isWayland ? this.resolveWtypePasteScript() : null;
+    const wtypePasteEntry = wtypePasteScript
+      ? [
+          {
+            cmd: wtypePasteScript,
+            args: inTerminal ? ["--terminal"] : [],
+            isScript: true,
+          },
+        ]
+      : [];
     const xdotoolEntry = canUseXdotool ? [{ cmd: "xdotool", args: xdotoolArgs }] : [];
     const ydotoolEntry = canUseYdotool ? [{ cmd: "ydotool", args: ydotoolArgs }] : [];
 
@@ -1372,11 +1431,11 @@ class ClipboardManager {
       // X11: xdotool is native and needs no daemon; ydotool as fallback
       candidates = [...xdotoolEntry, ...ydotoolEntry];
     } else if (isWlroots) {
-      // wlroots (Sway, Hyprland, etc.): wtype is native; then xdotool for XWayland; ydotool last
-      candidates = [...wtypeEntry, ...xdotoolEntry, ...ydotoolEntry];
+      // wlroots (Sway, Hyprland, etc.): wtype is native; then xdotool for XWayland; ydotool last; wtype-paste script as final fallback
+      candidates = [...wtypeEntry, ...xdotoolEntry, ...ydotoolEntry, ...wtypePasteEntry];
     } else {
-      // GNOME, KDE, or unknown Wayland: ydotool (uinput) works for all windows; xdotool for XWayland only
-      candidates = [...ydotoolEntry, ...xdotoolEntry, ...wtypeEntry];
+      // GNOME, KDE, or unknown Wayland: ydotool (uinput) works for all windows; xdotool for XWayland only; wtype-paste script as final fallback
+      candidates = [...ydotoolEntry, ...xdotoolEntry, ...wtypeEntry, ...wtypePasteEntry];
     }
 
     const available = candidates.filter((c) => this.commandExists(c.cmd));
@@ -1407,11 +1466,15 @@ class ClipboardManager {
               args: tool.args,
               delay,
               isWayland,
+              isScript: tool.isScript || false,
             },
             "clipboard"
           );
 
-          const proc = spawn(tool.cmd, tool.args);
+          // For wtype-paste script, pass clipboard text via stdin
+          const textToPaste = tool.isScript ? clipboard.readText() : null;
+          const spawnOptions = tool.isScript && textToPaste ? { input: textToPaste } : {};
+          const proc = spawn(tool.cmd, tool.args, spawnOptions);
           let stderr = "";
           let stdout = "";
 

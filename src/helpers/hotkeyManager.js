@@ -3,6 +3,7 @@ const debugLogger = require("./debugLogger");
 const GnomeShortcutManager = require("./gnomeShortcut");
 const HyprlandShortcutManager = require("./hyprlandShortcut");
 const KDEShortcutManager = require("./kdeShortcut");
+const WaylandShortcutManager = require("./waylandShortcut");
 const { i18nMain } = require("./i18nMain");
 
 // Delay to ensure localStorage is accessible after window load
@@ -71,6 +72,8 @@ class HotkeyManager {
     this.useHyprland = false;
     this.kdeManager = null;
     this.useKDE = false;
+    this.waylandManager = null;
+    this.useGenericWayland = false;
   }
 
   // Backward-compatible property accessors
@@ -215,6 +218,30 @@ class HotkeyManager {
       return { success: true, hotkey };
     }
 
+    // On generic Wayland, route non-dictation slots to set up callbacks on D-Bus
+    // (but keybinding must be manually configured in the compositor)
+    if (this.useGenericWayland && this.waylandManager) {
+      if (slotName === "agent") {
+        this.waylandManager.setAgentCallback(callback);
+      }
+
+      // Store the slot configuration even though we can't auto-bind
+      const slot = this.slots.get(slotName) || { hotkey: null, callback: null, accelerator: null };
+      slot.hotkey = hotkey;
+      slot.callback = callback;
+      slot.accelerator = null;
+      this.slots.set(slotName, slot);
+
+      debugLogger.log(`[HotkeyManager] Generic Wayland slot "${slotName}" callback set (manual config required)`);
+      debugLogger.log(`[HotkeyManager] To use "${hotkey}" for ${slotName}, add to your compositor config:`);
+
+      const instructions = this.waylandManager.getManualConfigurationInstructions();
+      const dbusCmd = slotName === "agent" ? instructions.dbusAgentCommand : instructions.dbusCommand;
+      debugLogger.log(`[HotkeyManager]   ${dbusCmd}`);
+
+      return { success: true, hotkey, manualConfigRequired: true };
+    }
+
     const result = this.setupShortcuts(hotkey, callback, slotName);
     if (result.success) {
       const slot = this.slots.get(slotName) || {};
@@ -246,6 +273,19 @@ class HotkeyManager {
       this.gnomeManager.unregisterKeybinding(slotName).catch((err) => {
         debugLogger.warn(
           `[HotkeyManager] Error unregistering GNOME keybinding for slot "${slotName}":`,
+          err.message
+        );
+      });
+      slot.hotkey = null;
+      slot.accelerator = null;
+      return;
+    }
+
+    // On generic Wayland, we just clear the slot since keybindings are manual
+    if (this.useGenericWayland && this.waylandManager) {
+      this.waylandManager.unregisterKeybinding(slotName).catch((err) => {
+        debugLogger.warn(
+          `[HotkeyManager] Error during generic Wayland unregister for slot "${slotName}":`,
           err.message
         );
       });
@@ -551,6 +591,37 @@ class HotkeyManager {
     return false;
   }
 
+  async initializeGenericWaylandShortcuts(callback) {
+    if (process.platform !== "linux" || !WaylandShortcutManager.isWayland()) {
+      return false;
+    }
+
+    // Don't initialize if we already have a specific DE manager working
+    if (this.useGnome || this.useKDE || this.useHyprland) {
+      debugLogger.log("[HotkeyManager] Skipping generic Wayland - already using DE-specific shortcuts");
+      return false;
+    }
+
+    try {
+      this.waylandManager = new WaylandShortcutManager();
+
+      const dbusOk = await this.waylandManager.initDBusService(callback);
+      debugLogger.log("[HotkeyManager] Generic Wayland D-Bus init result:", dbusOk);
+      if (dbusOk) {
+        this.useGenericWayland = true;
+        this.hotkeyCallback = callback;
+        debugLogger.log("[HotkeyManager] Generic Wayland shortcuts initialized - D-Bus service ready for manual configuration");
+        return true;
+      }
+    } catch (err) {
+      debugLogger.log("[HotkeyManager] Generic Wayland shortcut init failed:", err.message);
+      this.waylandManager = null;
+      this.useGenericWayland = false;
+    }
+
+    return false;
+  }
+
   async initializeHotkey(mainWindow, callback) {
     if (!mainWindow || !callback) {
       throw new Error("mainWindow and callback are required");
@@ -672,6 +743,27 @@ class HotkeyManager {
         };
 
         setTimeout(registerHyprlandHotkey, HOTKEY_REGISTRATION_DELAY_MS);
+        this.isInitialized = true;
+        return;
+      }
+
+      // Try generic Wayland D-Bus service for compositors without specific DE integration
+      const genericWaylandOk = await this.initializeGenericWaylandShortcuts(callback);
+
+      if (genericWaylandOk) {
+        debugLogger.log("[HotkeyManager] Generic Wayland D-Bus service active");
+        debugLogger.log("[HotkeyManager] Note: Manual compositor configuration required for global hotkeys");
+        debugLogger.log("[HotkeyManager] The app will try globalShortcut as fallback (may work via XWayland)");
+
+        // Even with D-Bus service active, fall back to globalShortcut for hotkeys
+        // (it may work via XWayland, and users can configure manual D-Bus calls)
+        const loadHotkey = () => this.loadSavedHotkeyOrDefault(mainWindow, callback);
+        if (mainWindow.webContents.isLoading()) {
+          mainWindow.webContents.once("did-finish-load", loadHotkey);
+        } else {
+          loadHotkey();
+        }
+
         this.isInitialized = true;
         return;
       }
@@ -905,6 +997,36 @@ class HotkeyManager {
         };
       }
 
+      if (this.useGenericWayland && this.waylandManager) {
+        debugLogger.log(`[HotkeyManager] Updating hotkey on generic Wayland to "${hotkey}"`);
+        debugLogger.log(`[HotkeyManager] Note: On generic Wayland, hotkeys require manual compositor configuration`);
+
+        const success = await this.waylandManager.registerKeybinding(hotkey, "dictation");
+        // Generic Wayland always returns false for registerKeybinding since it requires manual config
+        // But we still try globalShortcut as fallback
+
+        const result = this.setupShortcuts(hotkey, callback);
+        if (result.success) {
+          this.currentHotkey = hotkey;
+          const saved = await this.saveHotkeyToRenderer(hotkey);
+          if (!saved) {
+            debugLogger.warn(
+              "[HotkeyManager] Hotkey registered but failed to persist to localStorage"
+            );
+          }
+          return {
+            success: true,
+            message: `Hotkey updated to: ${hotkey} (via globalShortcut fallback - manual D-Bus config recommended for Wayland)`,
+          };
+        } else {
+          return {
+            success: false,
+            message: result.error,
+            suggestions: result.suggestions,
+          };
+        }
+      }
+
       const result = this.setupShortcuts(hotkey, callback);
       if (result.success) {
         const saved = await this.saveHotkeyToRenderer(hotkey);
@@ -972,6 +1094,11 @@ class HotkeyManager {
       this.hyprlandManager = null;
       this.useHyprland = false;
     }
+    if (this.waylandManager) {
+      this.waylandManager.close();
+      this.waylandManager = null;
+      this.useGenericWayland = false;
+    }
     for (const slotName of this.slots.keys()) {
       const slot = this.slots.get(slotName);
       if (slot) {
@@ -994,8 +1121,12 @@ class HotkeyManager {
     return this.useKDE;
   }
 
+  isUsingGenericWayland() {
+    return this.useGenericWayland;
+  }
+
   isUsingNativeShortcut() {
-    return this.useGnome || this.useHyprland || this.useKDE;
+    return this.useGnome || this.useHyprland || this.useKDE || this.useGenericWayland;
   }
 
   isHotkeyRegistered(hotkey) {
