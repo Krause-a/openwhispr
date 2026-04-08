@@ -1337,6 +1337,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
 
       formData.append("file", optimizedAudio, `audio.${extension}`);
       formData.append("model", model);
+      formData.append("response_format", "json");
 
       if (language) {
         formData.append("language", language);

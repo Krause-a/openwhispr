@@ -2532,6 +2532,7 @@ class IPCHandlers {
           language: opts.language,
           prompt: opts.prompt,
           sendLogs: opts.sendLogs,
+          response_format: "json",
           clientType: "desktop",
           appVersion: app.getVersion(),
           clientVersion: app.getVersion(),
@@ -2661,6 +2662,7 @@ class IPCHandlers {
               const apiUrl = getApiUrl();
               if (apiUrl) {
                 const { body, boundary } = buildMultipartBody(buffer, "audio.webm", "audio/webm", {
+                  response_format: "json",
                   clientType: "desktop",
                   appVersion: app.getVersion(),
                   sessionId: this.sessionId,
@@ -3918,6 +3920,7 @@ class IPCHandlers {
 
           const { body, boundary } = buildMultipartBody(audioBuffer, fileName, contentType, {
             model: model || "whisper-1",
+            response_format: "json",
           });
 
           const url = new URL(transcriptionUrl);

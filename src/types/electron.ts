@@ -765,6 +765,9 @@ declare global {
       getActivationMode?: () => Promise<"tap" | "push">;
       saveActivationMode?: (mode: "tap" | "push") => Promise<void>;
 
+      // DBus service persistence
+      saveEnableDBusService?: (enabled: boolean) => void;
+
       // Debug logging
       getLogLevel?: () => Promise<string>;
       log?: (entry: {
