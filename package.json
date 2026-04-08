@@ -41,7 +41,7 @@
     "build:linux:deb": "npm run build:renderer && electron-builder --linux deb",
     "build:linux:rpm": "npm run build:renderer && electron-builder --linux rpm",
     "build:linux:tar": "npm run build:renderer && electron-builder --linux tar.gz",
-    "build:linux:unpacked": "npm run build:renderer && electron-builder --linux --dir",
+    "build:linux:unpacked": "npm run build:renderer && electron-builder --linux --dir && ./scripts/post-build-linux.sh",
     "setup": "node setup.js",
     "prepack": "npm run compile:native && npm run download:whisper-cpp && npm run download:llama-server && npm run download:sherpa-onnx && npm run download:qdrant",
     "pack": "npm run build:renderer && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --dir",
