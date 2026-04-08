@@ -94,25 +94,6 @@ class WindowManager {
     MenuManager.setupMainMenu(() => this.openSettings());
   }
 
-  setMainWindowInteractivity(shouldCapture) {
-    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
-      return;
-    }
-
-    if (process.platform === "win32") {
-      // Windows click-through forwarding is unreliable for this floating panel.
-      // Keep the panel interactive so the mic button and cancel button are always clickable.
-      this.mainWindow.setIgnoreMouseEvents(false);
-      return;
-    }
-
-    if (shouldCapture) {
-      this.mainWindow.setIgnoreMouseEvents(false);
-    } else {
-      this.mainWindow.setIgnoreMouseEvents(true, { forward: true });
-    }
-  }
-
   resizeMainWindow(sizeKey) {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       return { success: false, message: "Window not available" };

@@ -425,11 +425,6 @@ class IPCHandlers {
       return { success: true };
     });
 
-    ipcMain.handle("set-main-window-interactivity", (event, shouldCapture) => {
-      this.windowManager.setMainWindowInteractivity(Boolean(shouldCapture));
-      return { success: true };
-    });
-
     ipcMain.handle("resize-main-window", (event, sizeKey) => {
       return this.windowManager.resizeMainWindow(sizeKey);
     });

@@ -664,7 +664,6 @@ declare global {
       getPlatform: () => string;
       startWindowDrag: () => Promise<void>;
       stopWindowDrag: () => Promise<void>;
-      setMainWindowInteractivity: (interactive: boolean) => Promise<void>;
 
       // App management
       appQuit: () => Promise<void>;
