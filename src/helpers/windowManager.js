@@ -57,7 +57,6 @@ class WindowManager {
       ...position,
     });
 
-    this.setMainWindowInteractivity(false);
     this.registerMainWindowEvents();
 
     // Register load event handlers BEFORE loading to catch all events
