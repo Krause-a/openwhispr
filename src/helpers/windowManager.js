@@ -481,8 +481,9 @@ class WindowManager {
 
   async initializeHotkey() {
     // Check for user override to force D-Bus even on X11
-    const { getSettings } = require('../stores/settingsStore');
-    const forceDBus = getSettings().enableDBusService === true;
+    const EnvironmentManager = require("./environment");
+    const envManager = new EnvironmentManager();
+    const forceDBus = envManager.getEnableDBusService();
 
     if (forceDBus) {
       debugLogger.log("[WindowManager] User setting 'enableDBusService' enabled - forcing D-Bus initialization regardless of session type");

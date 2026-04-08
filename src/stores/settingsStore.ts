@@ -562,7 +562,11 @@ export const useSettingsStore = create<SettingsState>()((set, get) => ({
   setAgentSystemPrompt: createStringSetter("agentSystemPrompt"),
   setAgentEnabled: createBooleanSetter("agentEnabled"),
   setCloudAgentMode: createStringSetter("cloudAgentMode"),
-  setEnableDBusService: createBooleanSetter("enableDBusService"),
+  setEnableDBusService: (value: boolean) => {
+    if (isBrowser) localStorage.setItem("enableDBusService", String(value));
+    set({ enableDBusService: value });
+    window.electronAPI?.saveEnableDBusService?.(value);
+  },
 
   updateTranscriptionSettings: (settings: Partial<TranscriptionSettings>) => {
     const s = useSettingsStore.getState();

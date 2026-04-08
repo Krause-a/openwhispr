@@ -1950,6 +1950,14 @@ class IPCHandlers {
       return this.environmentManager.saveActivationMode(mode);
     });
 
+    ipcMain.handle("get-enable-dbus-service", async () => {
+      return this.environmentManager.getEnableDBusService();
+    });
+
+    ipcMain.on("enable-dbus-service-changed", (event, enabled) => {
+      this.environmentManager.saveEnableDBusService(enabled);
+    });
+
     ipcMain.handle("save-anthropic-key", async (event, key) => {
       return this.environmentManager.saveAnthropicKey(key);
     });

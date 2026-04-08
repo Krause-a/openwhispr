@@ -626,8 +626,9 @@ debugLogger.info("[HotkeyManager] Attempting generic Wayland shortcuts", {
   }
 
     // Check if user has explicitly enabled D-Bus via settings
-    const { getSettings } = require('../stores/settingsStore');
-    const forceDBus = getSettings().enableDBusService === true;
+    const EnvironmentManager = require("./environment");
+    const envManager = new EnvironmentManager();
+    const forceDBus = envManager.getEnableDBusService();
 
     // Allow initialization if:
     // 1. No DE-specific manager is active, OR

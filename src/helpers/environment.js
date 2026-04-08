@@ -29,6 +29,7 @@ const PERSISTED_KEYS = [
   "WHISPER_CUDA_ENABLED",
   "TRANSCRIPTION_GPU_INDEX",
   "INTELLIGENCE_GPU_INDEX",
+  "ENABLE_DBUS_SERVICE",
 ];
 
 class EnvironmentManager {
@@ -197,6 +198,16 @@ class EnvironmentManager {
 
   savePanelStartPosition(position) {
     const result = this._saveKey("PANEL_START_POSITION", position);
+    this.saveAllKeysToEnvFile().catch(() => {});
+    return result;
+  }
+
+  getEnableDBusService() {
+    return this._getKey("ENABLE_DBUS_SERVICE") === "true";
+  }
+
+  saveEnableDBusService(enabled) {
+    const result = this._saveKey("ENABLE_DBUS_SERVICE", String(enabled));
     this.saveAllKeysToEnvFile().catch(() => {});
     return result;
   }

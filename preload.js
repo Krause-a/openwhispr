@@ -338,6 +338,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getActivationMode: () => ipcRenderer.invoke("get-activation-mode"),
   saveActivationMode: (mode) => ipcRenderer.invoke("save-activation-mode", mode),
 
+  // D-Bus service enablement
+  getEnableDBusService: () => ipcRenderer.invoke("get-enable-dbus-service"),
+  saveEnableDBusService: (enabled) => ipcRenderer.send("enable-dbus-service-changed", enabled),
+
   saveAllKeysToEnv: () => ipcRenderer.invoke("save-all-keys-to-env"),
   syncStartupPreferences: (prefs) => ipcRenderer.invoke("sync-startup-preferences", prefs),
 
