@@ -1494,26 +1494,29 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             throw new Error(result.error || "Custom proxy transcription failed");
           }
 
-          // Build response object to maintain compatibility with existing flow
-          const fakeResponse = {
-            ok: true,
-            status: 200,
-            headers: {
-              get: () => "application/json",
-            },
-            json: async () => result.data,
-          };
+          // Proxy returned success - process the transcription result directly
+          const resultText = result.data?.text;
+          if (resultText && resultText.trim().length > 0) {
+            timings.transcriptionProcessingDurationMs = Math.round(performance.now() - apiCallStart);
+            const rawText = resultText;
 
-          return await this.handleTranscriptionResponse(
-            fakeResponse,
-            provider,
-            model,
-            apiCallStart,
-            optimizedAudio,
-            metadata,
-            shouldStream,
-            timings
-          );
+            const reasoningStart = performance.now();
+            const text = await this.processTranscription(resultText, provider);
+            timings.reasoningProcessingDurationMs = Math.round(performance.now() - reasoningStart);
+
+            await this.saveTranscription(text, rawText);
+            await this.safePaste(text);
+
+            return {
+              success: true,
+              text,
+              rawText,
+              source: provider,
+              timings,
+            };
+          }
+
+          throw new Error("No text transcribed - API response was empty");
         } catch (proxyError) {
           logger.warn(
             "Custom proxy failed, falling back to browser fetch",
