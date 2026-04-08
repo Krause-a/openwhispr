@@ -3,6 +3,10 @@ const path = require("path");
 const http = require("http");
 const https = require("https");
 const crypto = require("crypto");
+const fs = require("fs");
+const os = require("os");
+const { convertToWav } = require("./ffmpegUtils");
+const { getSafeTempDir } = require("./safeTempDir");
 const debugLogger = require("./debugLogger");
 const GnomeShortcutManager = require("./gnomeShortcut");
 const HyprlandShortcutManager = require("./hyprlandShortcut");
@@ -1918,8 +1922,8 @@ class IPCHandlers {
       }
     );
 
-    // DEBUG: Custom transcription proxy to bypass browser FormData issues
-    ipcMain.handle("proxy-custom-transcription-debug", async (event, {
+    // Custom transcription proxy - converts WebM to WAV for API compatibility
+    ipcMain.handle("proxy-custom-transcription", async (event, {
       audioBuffer,
       endpoint,
       apiKey,
@@ -1928,17 +1932,50 @@ class IPCHandlers {
       responseFormat,
       prompt
     }) => {
-      debugLogger.info(
-        "DEBUG proxy-custom-transcription-debug invoked",
-        { endpoint, model, hasApiKey: !!apiKey, audioBufferLength: audioBuffer?.byteLength },
-        "transcription"
-      );
+      const tempWebmPath = path.join(getSafeTempDir(), `ow-webm-${Date.now()}.webm`);
+      const tempWavPath = path.join(getSafeTempDir(), `ow-wav-${Date.now()}.wav`);
+      let wavBuffer;
+
+      try {
+        // Convert WebM buffer to WAV using FFmpeg
+        fs.writeFileSync(tempWebmPath, Buffer.from(audioBuffer));
+
+        await convertToWav(tempWebmPath, tempWavPath, {
+          sampleRate: 16000,
+          channels: 1,
+        });
+
+        wavBuffer = fs.readFileSync(tempWavPath);
+
+        debugLogger.info(
+          "Audio converted WebM -> WAV",
+          {
+            originalSize: audioBuffer.byteLength,
+            wavSize: wavBuffer.length,
+          },
+          "transcription"
+        );
+      } catch (conversionError) {
+        debugLogger.error(
+          "FFmpeg conversion failed, falling back to original buffer",
+          { error: conversionError.message },
+          "transcription"
+        );
+        // Fallback: use original buffer as-is (may fail if backend doesn't support WebM)
+        wavBuffer = Buffer.from(audioBuffer);
+      } finally {
+        // Clean up temp files
+        try {
+          if (fs.existsSync(tempWebmPath)) fs.unlinkSync(tempWebmPath);
+          if (fs.existsSync(tempWavPath)) fs.unlinkSync(tempWavPath);
+        } catch (cleanupError) {
+          debugLogger.debug("Temp file cleanup failed", { error: cleanupError.message }, "transcription");
+        }
+      }
 
       try {
         const url = new URL(endpoint);
-        const buffer = Buffer.from(audioBuffer);
 
-        // Build fields object exactly like CURL --form flags
         const fields = {
           model,
           response_format: responseFormat || "json",
@@ -1946,70 +1983,21 @@ class IPCHandlers {
         if (language) fields.language = language;
         if (prompt) fields.prompt = prompt;
 
-        // Use buildMultipartBody with WAV to match working CURL
         const { body, boundary } = buildMultipartBody(
-          buffer,
-          "audio.wav",  // Force .wav extension like working CURL
-          "audio/wav",  // Force WAV mime type
+          wavBuffer,
+          "audio.wav",
+          "audio/wav",
           fields
         );
 
-        // Log the exact request we're about to send
-        debugLogger.info(
-          "DEBUG: Built multipart body",
-          {
-            bodyLength: body.length,
-            boundary,
-            fields: Object.keys(fields),
-            fileName: "audio.wav",
-            fileMimeType: "audio/wav",
-            fileBufferLength: buffer.length,
-          },
-          "transcription"
-        );
-
-        // Log body preview (first 2000 chars of the string parts)
-        const bodyStringPreview = body.toString().slice(0, 2000);
-        debugLogger.info(
-          "DEBUG: Request body preview",
-          { bodyPreview: bodyStringPreview },
-          "transcription"
-        );
-
-        // Make request using postMultipart (same as CURL)
         const headers = {};
         if (apiKey) {
           headers.Authorization = `Bearer ${apiKey}`;
         }
 
-        debugLogger.info(
-          "DEBUG: About to make request",
-          {
-            url: url.toString(),
-            hasAuthHeader: !!apiKey,
-            boundary,
-          },
-          "transcription"
-        );
-
         const result = await postMultipart(url, body, boundary, headers);
 
-        debugLogger.info(
-          "DEBUG: Request completed",
-          {
-            statusCode: result.statusCode,
-            hasData: !!result.data,
-            dataKeys: result.data ? Object.keys(result.data) : [],
-          },
-          "transcription"
-        );
-
         if (result.statusCode !== 200) {
-          debugLogger.error(
-            "DEBUG: Request failed",
-            { statusCode: result.statusCode, data: result.data },
-            "transcription"
-          );
           throw new Error(`API Error ${result.statusCode}: ${JSON.stringify(result.data)}`);
         }
 
@@ -2020,8 +2008,8 @@ class IPCHandlers {
         };
       } catch (error) {
         debugLogger.error(
-          "DEBUG: proxy-custom-transcription-debug failed",
-          { error: error.message, stack: error.stack },
+          "proxy-custom-transcription failed",
+          { error: error.message },
           "transcription"
         );
         return {

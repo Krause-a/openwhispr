@@ -1470,17 +1470,17 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         "transcription"
       );
 
-      // DEBUG: For custom endpoints, bypass browser FormData and use Node.js proxy
-      if (isCustomEndpoint && window.electronAPI?.proxyCustomTranscriptionDebug) {
-        logger.info(
-          "DEBUG: Using custom proxy to bypass browser FormData",
+      // For custom endpoints, route through main process to convert WebM->WAV
+      if (isCustomEndpoint && window.electronAPI?.proxyCustomTranscription) {
+        logger.debug(
+          "Using custom proxy with WebM->WAV conversion",
           { endpoint, model, language },
           "transcription"
         );
 
         try {
           const audioBuffer = await optimizedAudio.arrayBuffer();
-          const result = await window.electronAPI.proxyCustomTranscriptionDebug({
+          const result = await window.electronAPI.proxyCustomTranscription({
             audioBuffer,
             endpoint,
             apiKey,
@@ -1491,21 +1491,10 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
           });
 
           if (!result.success) {
-            logger.error(
-              "DEBUG: Custom proxy failed",
-              { error: result.error },
-              "transcription"
-            );
             throw new Error(result.error || "Custom proxy transcription failed");
           }
 
-          logger.info(
-            "DEBUG: Custom proxy succeeded",
-            { hasText: !!result.text, hasData: !!result.data },
-            "transcription"
-          );
-
-          // Build a fake response object to maintain compatibility
+          // Build response object to maintain compatibility with existing flow
           const fakeResponse = {
             ok: true,
             status: 200,
@@ -1526,8 +1515,8 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             timings
           );
         } catch (proxyError) {
-          logger.error(
-            "DEBUG: Proxy failed, falling back to browser fetch",
+          logger.warn(
+            "Custom proxy failed, falling back to browser fetch",
             { error: proxyError.message },
             "transcription"
           );
