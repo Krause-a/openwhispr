@@ -41,6 +41,7 @@ const MAIN_WINDOW_CONFIG = {
   height: WINDOW_SIZES.BASE.height,
   title: "Voice Recorder",
   webPreferences: {
+    name: "open-whispr",
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
     contextIsolation: true,
@@ -66,6 +67,7 @@ const CONTROL_PANEL_CONFIG = {
   height: 800,
   backgroundColor: "#1c1c2e",
   webPreferences: {
+    name: "open-whispr",
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
     contextIsolation: true,
@@ -111,6 +113,7 @@ const NOTIFICATION_WINDOW_CONFIG = {
   hasShadow: false,
   show: false,
   webPreferences: {
+    name: "open-whispr",
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
     contextIsolation: true,
@@ -197,6 +200,7 @@ const AGENT_OVERLAY_CONFIG = {
   type: FLOATING_OVERLAY_TYPE,
   visibleOnAllWorkspaces: process.platform !== "win32",
   webPreferences: {
+    name: "open-whispr",
     preload: path.join(__dirname, "..", "..", "preload.js"),
     nodeIntegration: false,
     contextIsolation: true,

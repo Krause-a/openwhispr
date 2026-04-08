@@ -172,6 +172,11 @@ if (process.platform === "darwin" && app.getName() !== "OpenWhispr") {
   app.setName("OpenWhispr");
 }
 
+// Ensure Linux windows have proper WM_CLASS/app_id for window manager matching
+if (process.platform === "linux" && app.getName() !== "open-whispr") {
+  app.setName("open-whispr");
+}
+
 // Add global error handling for uncaught exceptions
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
