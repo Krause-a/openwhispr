@@ -1434,12 +1434,25 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         headers.Authorization = `Bearer ${apiKey}`;
       }
 
+      // Log exact request shape for debugging
+      const formDataEntries = [];
+      for (const [key, value] of formData.entries()) {
+        if (value instanceof Blob) {
+          formDataEntries.push({ key, type: "Blob", size: value.size, mimeType: value.type });
+        } else {
+          formDataEntries.push({ key, value: String(value).substring(0, 100) });
+        }
+      }
+
       logger.debug(
         "STT request details",
         {
           endpoint,
           method: "POST",
           hasAuthHeader: !!apiKey,
+          authHeaderValue: apiKey ? `Bearer ${apiKey.substring(0, 12)}...` : "(none)",
+          headers: Object.keys(headers),
+          formDataEntries,
           formDataFields: [
             "file",
             "model",
