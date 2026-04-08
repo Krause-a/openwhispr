@@ -1470,6 +1470,71 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         "transcription"
       );
 
+      // DEBUG: For custom endpoints, bypass browser FormData and use Node.js proxy
+      if (isCustomEndpoint && window.electronAPI?.proxyCustomTranscriptionDebug) {
+        logger.info(
+          "DEBUG: Using custom proxy to bypass browser FormData",
+          { endpoint, model, language },
+          "transcription"
+        );
+
+        try {
+          const audioBuffer = await optimizedAudio.arrayBuffer();
+          const result = await window.electronAPI.proxyCustomTranscriptionDebug({
+            audioBuffer,
+            endpoint,
+            apiKey,
+            model,
+            language,
+            responseFormat: "json",
+            prompt: dictionaryPrompt,
+          });
+
+          if (!result.success) {
+            logger.error(
+              "DEBUG: Custom proxy failed",
+              { error: result.error },
+              "transcription"
+            );
+            throw new Error(result.error || "Custom proxy transcription failed");
+          }
+
+          logger.info(
+            "DEBUG: Custom proxy succeeded",
+            { hasText: !!result.text, hasData: !!result.data },
+            "transcription"
+          );
+
+          // Build a fake response object to maintain compatibility
+          const fakeResponse = {
+            ok: true,
+            status: 200,
+            headers: {
+              get: () => "application/json",
+            },
+            json: async () => result.data,
+          };
+
+          return await this.handleTranscriptionResponse(
+            fakeResponse,
+            provider,
+            model,
+            apiCallStart,
+            optimizedAudio,
+            metadata,
+            shouldStream,
+            timings
+          );
+        } catch (proxyError) {
+          logger.error(
+            "DEBUG: Proxy failed, falling back to browser fetch",
+            { error: proxyError.message },
+            "transcription"
+          );
+          // Fall through to browser fetch as fallback
+        }
+      }
+
       const response = await fetch(endpoint, {
         method: "POST",
         headers,

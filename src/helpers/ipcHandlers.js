@@ -1918,6 +1918,119 @@ class IPCHandlers {
       }
     );
 
+    // DEBUG: Custom transcription proxy to bypass browser FormData issues
+    ipcMain.handle("proxy-custom-transcription-debug", async (event, {
+      audioBuffer,
+      endpoint,
+      apiKey,
+      model,
+      language,
+      responseFormat,
+      prompt
+    }) => {
+      debugLogger.info(
+        "DEBUG proxy-custom-transcription-debug invoked",
+        { endpoint, model, hasApiKey: !!apiKey, audioBufferLength: audioBuffer?.byteLength },
+        "transcription"
+      );
+
+      try {
+        const url = new URL(endpoint);
+        const buffer = Buffer.from(audioBuffer);
+
+        // Build fields object exactly like CURL --form flags
+        const fields = {
+          model,
+          response_format: responseFormat || "json",
+        };
+        if (language) fields.language = language;
+        if (prompt) fields.prompt = prompt;
+
+        // Use buildMultipartBody with WAV to match working CURL
+        const { body, boundary } = buildMultipartBody(
+          buffer,
+          "audio.wav",  // Force .wav extension like working CURL
+          "audio/wav",  // Force WAV mime type
+          fields
+        );
+
+        // Log the exact request we're about to send
+        debugLogger.info(
+          "DEBUG: Built multipart body",
+          {
+            bodyLength: body.length,
+            boundary,
+            fields: Object.keys(fields),
+            fileName: "audio.wav",
+            fileMimeType: "audio/wav",
+            fileBufferLength: buffer.length,
+          },
+          "transcription"
+        );
+
+        // Log body preview (first 2000 chars of the string parts)
+        const bodyStringPreview = body.toString().slice(0, 2000);
+        debugLogger.info(
+          "DEBUG: Request body preview",
+          { bodyPreview: bodyStringPreview },
+          "transcription"
+        );
+
+        // Make request using postMultipart (same as CURL)
+        const headers = {};
+        if (apiKey) {
+          headers.Authorization = `Bearer ${apiKey}`;
+        }
+
+        debugLogger.info(
+          "DEBUG: About to make request",
+          {
+            url: url.toString(),
+            hasAuthHeader: !!apiKey,
+            boundary,
+          },
+          "transcription"
+        );
+
+        const result = await postMultipart(url, body, boundary, headers);
+
+        debugLogger.info(
+          "DEBUG: Request completed",
+          {
+            statusCode: result.statusCode,
+            hasData: !!result.data,
+            dataKeys: result.data ? Object.keys(result.data) : [],
+          },
+          "transcription"
+        );
+
+        if (result.statusCode !== 200) {
+          debugLogger.error(
+            "DEBUG: Request failed",
+            { statusCode: result.statusCode, data: result.data },
+            "transcription"
+          );
+          throw new Error(`API Error ${result.statusCode}: ${JSON.stringify(result.data)}`);
+        }
+
+        return {
+          success: true,
+          text: result.data?.text,
+          data: result.data,
+        };
+      } catch (error) {
+        debugLogger.error(
+          "DEBUG: proxy-custom-transcription-debug failed",
+          { error: error.message, stack: error.stack },
+          "transcription"
+        );
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    });
+
     ipcMain.handle("get-custom-transcription-key", async () => {
       return this.environmentManager.getCustomTranscriptionKey();
     });
