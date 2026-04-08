@@ -3,31 +3,68 @@ const { i18nMain } = require("./i18nMain");
 
 class MenuManager {
   static setupMainMenu(onOpenSettings) {
-    if (process.platform === "darwin") {
-      const template = [
-        {
-          label: i18nMain.t("menu.appLabel"),
-          submenu: [
-            { role: "about" },
-            { type: "separator" },
+    const template = [
+      ...(process.platform === "darwin"
+        ? [
             {
-              label: i18nMain.t("menu.settings"),
-              accelerator: "Command+,",
-              click: () => onOpenSettings?.(),
+              label: i18nMain.t("menu.appLabel"),
+              submenu: [
+                { role: "about" },
+                { type: "separator" },
+                {
+                  label: i18nMain.t("menu.settings"),
+                  accelerator: "Command+,",
+                  click: () => onOpenSettings?.(),
+                },
+                { type: "separator" },
+                { role: "services" },
+                { type: "separator" },
+                { role: "hide" },
+                { role: "hideOthers" },
+                { role: "unhide" },
+                { type: "separator" },
+                { role: "quit", label: i18nMain.t("menu.quit") },
+              ],
             },
-            { type: "separator" },
-            { role: "services" },
-            { type: "separator" },
-            { role: "hide" },
-            { role: "hideOthers" },
-            { role: "unhide" },
-            { type: "separator" },
-            { role: "quit", label: i18nMain.t("menu.quit") },
-          ],
-        },
-      ];
-      const menu = Menu.buildFromTemplate(template);
+          ]
+        : [
+            {
+              label: i18nMain.t("menu.file"),
+              submenu: [
+                {
+                  label: i18nMain.t("menu.settings"),
+                  accelerator: "Ctrl+,",
+                  click: () => onOpenSettings?.(),
+                },
+                { type: "separator" },
+                { role: "quit", label: i18nMain.t("menu.quit") },
+              ],
+            },
+          ]),
+      {
+        label: "View",
+        submenu: [
+          { role: "reload" },
+          { role: "forceReload" },
+          { role: "toggleDevTools" },
+          { type: "separator" },
+          { role: "resetZoom" },
+          { role: "zoomIn" },
+          { role: "zoomOut" },
+          { type: "separator" },
+          { role: "togglefullscreen" },
+        ],
+      },
+    ];
+    const menu = Menu.buildFromTemplate(template);
+    if (process.platform === "darwin") {
       Menu.setApplicationMenu(menu);
+    } else {
+      const { BrowserWindow } = require("electron");
+      const win = BrowserWindow.getFocusedWindow();
+      if (win) {
+        win.setMenu(menu);
+      }
     }
   }
 
