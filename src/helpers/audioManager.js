@@ -1293,6 +1293,18 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
       const model = this.getTranscriptionModel();
       const provider = apiSettings.cloudTranscriptionProvider || "openai";
 
+      console.log("[TRANSCRIPTION] Entering processWithOpenAIAPI", { model, provider, hasBlob: !!audioBlob, blobSize: audioBlob?.size });
+
+      logger.info(
+        "TRANSCRIPTION START", {
+          model,
+          provider,
+          endpoint: this.getTranscriptionEndpoint(),
+          hasApiKey: !!(await this.getAPIKey()),
+        },
+        "transcription"
+      );
+
       logger.debug(
         "Transcription request starting",
         {
@@ -1444,21 +1456,16 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         }
       }
 
-      logger.debug(
-        "STT request details",
+      logger.info(
+        "STT REQUEST FULL DETAILS",
         {
           endpoint,
           method: "POST",
           hasAuthHeader: !!apiKey,
-          authHeaderValue: apiKey ? `Bearer ${apiKey.substring(0, 12)}...` : "(none)",
+          authHeaderValue: apiKey ? `Bearer ${apiKey.substring(0, 16)}...` : "(none)",
           headers: Object.keys(headers),
           formDataEntries,
-          formDataFields: [
-            "file",
-            "model",
-            language && language !== "auto" ? "language" : null,
-            shouldStream ? "stream" : null,
-          ].filter(Boolean),
+          formDataFieldCount: formDataEntries.length,
         },
         "transcription"
       );
