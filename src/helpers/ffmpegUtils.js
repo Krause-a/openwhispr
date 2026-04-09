@@ -109,10 +109,18 @@ function isWavFormat(buffer) {
 
 function convertToWav(inputPath, outputPath, options = {}) {
   const { sampleRate = 16000, channels = 1 } = options;
+  const convertStartTime = Date.now();
+  console.log(`[TIMING][FFMPEG] convertToWav started at ${new Date().toISOString()}`, {
+    inputPath,
+    outputPath,
+    sampleRate,
+    channels,
+  });
 
   return new Promise((resolve, reject) => {
     const ffmpegPath = getFFmpegPath();
     if (!ffmpegPath) {
+      console.log(`[TIMING][FFMPEG] FFmpeg not found after ${Date.now() - convertStartTime}ms`);
       reject(new Error("FFmpeg not found - required for audio conversion"));
       return;
     }
@@ -136,6 +144,7 @@ function convertToWav(inputPath, outputPath, options = {}) {
       sampleRate,
       channels,
     });
+    console.log(`[TIMING][FFMPEG] Spawning FFmpeg process at ${new Date().toISOString()}, args: ${args.join(' ')}`);
 
     const proc = spawn(ffmpegPath, args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -149,12 +158,14 @@ function convertToWav(inputPath, outputPath, options = {}) {
     });
 
     proc.on("error", (error) => {
+      console.log(`[TIMING][FFMPEG] FFmpeg process error after ${Date.now() - convertStartTime}ms: ${error.message}`);
       reject(new Error(`FFmpeg process error: ${error.message}`));
     });
 
     proc.on("close", (code) => {
       if (code !== 0) {
         const stderrPreview = stderr.slice(-500).trim();
+        console.log(`[TIMING][FFMPEG] FFmpeg failed with code ${code} after ${Date.now() - convertStartTime}ms`);
         debugLogger.debug("FFmpeg conversion failed", { code, stderr: stderrPreview });
         reject(
           new Error(`FFmpeg exited with code ${code}${stderrPreview ? `: ${stderrPreview}` : ""}`)
@@ -163,16 +174,20 @@ function convertToWav(inputPath, outputPath, options = {}) {
       }
 
       if (!fs.existsSync(outputPath)) {
+        console.log(`[TIMING][FFMPEG] No output file after ${Date.now() - convertStartTime}ms`);
         reject(new Error("FFmpeg conversion produced no output file"));
         return;
       }
 
       const stats = fs.statSync(outputPath);
       if (stats.size === 0) {
+        console.log(`[TIMING][FFMPEG] Empty output file after ${Date.now() - convertStartTime}ms`);
         reject(new Error("FFmpeg conversion produced empty output file"));
         return;
       }
 
+      const totalTime = Date.now() - convertStartTime;
+      console.log(`[TIMING][FFMPEG] FFmpeg conversion SUCCESS after ${totalTime}ms, output size: ${stats.size} bytes`);
       debugLogger.debug("FFmpeg conversion complete", { outputSize: stats.size });
       resolve();
     });

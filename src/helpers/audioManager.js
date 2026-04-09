@@ -1479,7 +1479,13 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         );
 
         try {
+          console.log(`[TIMING] Starting arrayBuffer conversion at ${new Date().toISOString()}`);
+          const arrayBufferStart = performance.now();
           const audioBuffer = await optimizedAudio.arrayBuffer();
+          console.log(`[TIMING] arrayBuffer conversion took ${Math.round(performance.now() - arrayBufferStart)}ms, size: ${audioBuffer.byteLength} bytes`);
+
+          console.log(`[TIMING] Calling proxyCustomTranscription at ${new Date().toISOString()}`);
+          const proxyStart = performance.now();
           const result = await window.electronAPI.proxyCustomTranscription({
             audioBuffer,
             endpoint,
@@ -1489,6 +1495,7 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
             responseFormat: "json",
             prompt: dictionaryPrompt,
           });
+          console.log(`[TIMING] proxyCustomTranscription returned after ${Math.round(performance.now() - proxyStart)}ms at ${new Date().toISOString()}`);
 
           if (!result.success) {
             throw new Error(result.error || "Custom proxy transcription failed");

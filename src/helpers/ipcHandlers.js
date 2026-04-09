@@ -60,8 +60,16 @@ function buildMultipartBody(fileBuffer, fileName, contentType, fields = {}) {
 }
 
 function postMultipart(url, body, boundary, headers = {}) {
+  const postStartTime = Date.now();
+  console.log(`[TIMING][POST] postMultipart started at ${new Date().toISOString()}`, {
+    url: url.href,
+    bodySize: body.length,
+    protocol: url.protocol,
+  });
+
   const httpModule = url.protocol === "https:" ? https : http;
   return new Promise((resolve, reject) => {
+    console.log(`[TIMING][POST] Creating HTTP request at ${new Date().toISOString()}`);
     const req = httpModule.request(
       {
         hostname: url.hostname,
@@ -75,9 +83,12 @@ function postMultipart(url, body, boundary, headers = {}) {
         },
       },
       (res) => {
+        console.log(`[TIMING][POST] Response received after ${Date.now() - postStartTime}ms with status: ${res.statusCode}`);
         let responseData = "";
         res.on("data", (chunk) => (responseData += chunk));
         res.on("end", () => {
+          const totalTime = Date.now() - postStartTime;
+          console.log(`[TIMING][POST] Response complete after ${totalTime}ms, data length: ${responseData.length} bytes`);
           try {
             resolve({ statusCode: res.statusCode, data: JSON.parse(responseData) });
           } catch (e) {
@@ -86,8 +97,13 @@ function postMultipart(url, body, boundary, headers = {}) {
         });
       }
     );
-    req.on("error", reject);
+    req.on("error", (error) => {
+      console.log(`[TIMING][POST] Request error after ${Date.now() - postStartTime}ms: ${error.message}`);
+      reject(error);
+    });
+    console.log(`[TIMING][POST] Writing body at ${new Date().toISOString()}`);
     req.write(body);
+    console.log(`[TIMING][POST] Ending request at ${new Date().toISOString()}`);
     req.end();
   });
 }
@@ -1931,20 +1947,32 @@ class IPCHandlers {
       responseFormat,
       prompt
     }) => {
+      const totalStartTime = Date.now();
+      console.log(`[TIMING][MAIN] proxy-custom-transcription started at ${new Date().toISOString()}, audioBuffer size: ${audioBuffer?.byteLength || 0} bytes`);
+
       const tempWebmPath = path.join(getSafeTempDir(), `ow-webm-${Date.now()}.webm`);
       const tempWavPath = path.join(getSafeTempDir(), `ow-wav-${Date.now()}.wav`);
       let wavBuffer;
 
       try {
         // Convert WebM buffer to WAV using FFmpeg
+        console.log(`[TIMING][MAIN] Starting writeFileSync at ${new Date().toISOString()}`);
+        const writeStart = Date.now();
         fs.writeFileSync(tempWebmPath, Buffer.from(audioBuffer));
+        console.log(`[TIMING][MAIN] writeFileSync took ${Date.now() - writeStart}ms`);
 
+        console.log(`[TIMING][MAIN] Starting convertToWav at ${new Date().toISOString()}`);
+        const convertStart = Date.now();
         await convertToWav(tempWebmPath, tempWavPath, {
           sampleRate: 16000,
           channels: 1,
         });
+        console.log(`[TIMING][MAIN] convertToWav took ${Date.now() - convertStart}ms`);
 
+        console.log(`[TIMING][MAIN] Starting readFileSync at ${new Date().toISOString()}`);
+        const readStart = Date.now();
         wavBuffer = fs.readFileSync(tempWavPath);
+        console.log(`[TIMING][MAIN] readFileSync took ${Date.now() - readStart}ms, wav size: ${wavBuffer.length} bytes`);
 
         debugLogger.info(
           "Audio converted WebM -> WAV",
@@ -1955,6 +1983,7 @@ class IPCHandlers {
           "transcription"
         );
       } catch (conversionError) {
+        console.log(`[TIMING][MAIN] FFmpeg conversion FAILED after ${Date.now() - totalStartTime}ms: ${conversionError.message}`);
         debugLogger.error(
           "FFmpeg conversion failed, falling back to original buffer",
           { error: conversionError.message },
@@ -1962,7 +1991,9 @@ class IPCHandlers {
         );
         // Fallback: use original buffer as-is (may fail if backend doesn't support WebM)
         wavBuffer = Buffer.from(audioBuffer);
+        console.log(`[TIMING][MAIN] Fallback to original buffer at ${new Date().toISOString()}, size: ${wavBuffer.length} bytes`);
       } finally {
+        console.log(`[TIMING][MAIN] Starting temp file cleanup at ${new Date().toISOString()}`);
         // Clean up temp files
         try {
           if (fs.existsSync(tempWebmPath)) fs.unlinkSync(tempWebmPath);
@@ -1982,30 +2013,38 @@ class IPCHandlers {
         if (language) fields.language = language;
         if (prompt) fields.prompt = prompt;
 
+        console.log(`[TIMING][MAIN] Starting buildMultipartBody at ${new Date().toISOString()}`);
+        const multipartStart = Date.now();
         const { body, boundary } = buildMultipartBody(
           wavBuffer,
           "audio.wav",
           "audio/wav",
           fields
         );
+        console.log(`[TIMING][MAIN] buildMultipartBody took ${Date.now() - multipartStart}ms, body size: ${body.length} bytes`);
 
         const headers = {};
         if (apiKey) {
           headers.Authorization = `Bearer ${apiKey}`;
         }
 
+        console.log(`[TIMING][MAIN] Starting postMultipart request at ${new Date().toISOString()}`);
+        const postStart = Date.now();
         const result = await postMultipart(url, body, boundary, headers);
+        console.log(`[TIMING][MAIN] postMultipart completed in ${Date.now() - postStart}ms with status: ${result.statusCode}`);
 
         if (result.statusCode !== 200) {
           throw new Error(`API Error ${result.statusCode}: ${JSON.stringify(result.data)}`);
         }
 
+        console.log(`[TIMING][MAIN] proxy-custom-transcription SUCCESS - total time: ${Date.now() - totalStartTime}ms`);
         return {
           success: true,
           text: result.data?.text,
           data: result.data,
         };
       } catch (error) {
+        console.log(`[TIMING][MAIN] proxy-custom-transcription ERROR after ${Date.now() - totalStartTime}ms: ${error.message}`);
         debugLogger.error(
           "proxy-custom-transcription failed",
           { error: error.message },
