@@ -5,41 +5,12 @@ const debugLogger = require("./debugLogger");
 
 class MediaPlayer {
   constructor() {
-    this._linuxBinaryChecked = false;
-    this._linuxBinaryPath = null;
     this._nircmdChecked = false;
     this._nircmdPath = null;
     this._macBinaryChecked = false;
     this._macBinaryPath = null;
     this._pausedPlayers = []; // MPRIS players we paused (Linux)
     this._didPause = false; // Whether we sent a pause via toggle fallback
-  }
-
-  _resolveLinuxFastPaste() {
-    if (this._linuxBinaryChecked) return this._linuxBinaryPath;
-    this._linuxBinaryChecked = true;
-
-    const candidates = [
-      path.join(__dirname, "..", "..", "resources", "bin", "linux-fast-paste"),
-      path.join(__dirname, "..", "..", "resources", "linux-fast-paste"),
-    ];
-
-    if (process.resourcesPath) {
-      candidates.push(path.join(process.resourcesPath, "bin", "linux-fast-paste"));
-    }
-
-    for (const candidate of candidates) {
-      try {
-        if (fs.existsSync(candidate)) {
-          fs.accessSync(candidate, fs.constants.X_OK);
-          this._linuxBinaryPath = candidate;
-          return candidate;
-        }
-      } catch {
-        continue;
-      }
-    }
-    return null;
   }
 
   _resolveNircmd() {
@@ -280,23 +251,21 @@ class MediaPlayer {
   _toggleLinux() {
     if (this._toggleMpris()) return true;
 
-    const binary = this._resolveLinuxFastPaste();
-    if (binary) {
-      const result = spawnSync(binary, ["--media-play-pause"], {
-        stdio: "pipe",
-        timeout: 3000,
-      });
-      if (result.status === 0) {
-        debugLogger.debug("Media toggled via linux-fast-paste", {}, "media");
-        return true;
-      }
-    }
-
-    const result = spawnSync("playerctl", ["play-pause"], {
+    // Try wtype to send media play/pause key
+    const wtypeResult = spawnSync("wtype", ["-k", "XF86AudioPlay"], {
       stdio: "pipe",
       timeout: 3000,
     });
-    if (result.status === 0) {
+    if (wtypeResult.status === 0) {
+      debugLogger.debug("Media toggled via wtype", {}, "media");
+      return true;
+    }
+
+    const playerctlResult = spawnSync("playerctl", ["play-pause"], {
+      stdio: "pipe",
+      timeout: 3000,
+    });
+    if (playerctlResult.status === 0) {
       debugLogger.debug("Media toggled via playerctl", {}, "media");
       return true;
     }

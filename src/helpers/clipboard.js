@@ -78,10 +78,8 @@ class ClipboardManager {
     this.fastPasteChecked = false;
     this.winFastPastePath = null;
     this.winFastPasteChecked = false;
-    this.linuxFastPastePath = null;
-    this.linuxFastPasteChecked = false;
-    this.wtypePastePath = null;
-    this.wtypePasteChecked = false;
+    this.wtypeScriptPath = null;
+    this.wtypeScriptChecked = false;
     this.portalDenied = false;
     this._kwinScriptPath = null;
 
@@ -258,13 +256,98 @@ class ClipboardManager {
     );
   }
 
-  resolveLinuxFastPasteBinary() {
-    return this._resolveNativeBinary(
-      "linux-fast-paste",
-      "linux",
-      "linuxFastPasteChecked",
-      "linuxFastPastePath"
-    );
+  resolveWtypeScript() {
+    if (this.wtypeScriptChecked) {
+      return this.wtypeScriptPath;
+    }
+    this.wtypeScriptChecked = true;
+
+    if (process.platform !== "linux") {
+      return null;
+    }
+
+    const candidates = new Set([
+      path.join(__dirname, "..", "..", "resources", "bin", "linux-fast-paste-wtype.sh"),
+      path.join(__dirname, "..", "..", "..", "resources", "bin", "linux-fast-paste-wtype.sh"),
+    ]);
+
+    if (process.resourcesPath) {
+      [
+        path.join(process.resourcesPath, "bin", "linux-fast-paste-wtype.sh"),
+        path.join(process.resourcesPath, "resources", "bin", "linux-fast-paste-wtype.sh"),
+        path.join(process.resourcesPath, "app.asar.unpacked", "resources", "bin", "linux-fast-paste-wtype.sh"),
+      ].forEach((candidate) => candidates.add(candidate));
+    }
+
+    for (const candidate of candidates) {
+      try {
+        const stats = fs.statSync(candidate);
+        if (stats.isFile()) {
+          try {
+            fs.accessSync(candidate, fs.constants.X_OK);
+          } catch {
+            fs.chmodSync(candidate, 0o755);
+          }
+          this.wtypeScriptPath = candidate;
+          debugLogger.debug("Found wtype script", { path: candidate }, "clipboard");
+          return candidate;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    debugLogger.debug("wtype script not found", {}, "clipboard");
+    return null;
+  }
+
+  spawnWtypeScript(text, label) {
+    return new Promise((resolve, reject) => {
+      const wtypeScript = this.resolveWtypeScript();
+      if (!wtypeScript) {
+        reject(new Error("wtype script not found"));
+        return;
+      }
+
+      debugLogger.debug(
+        `Attempting wtype script paste (${label})`,
+        { wtypeScript, textLength: text?.length },
+        "clipboard"
+      );
+
+      const proc = spawn("bash", [wtypeScript, text]);
+      let stderr = "";
+
+      proc.stderr?.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      let timedOut = false;
+      const timeoutId = setTimeout(() => {
+        timedOut = true;
+        killProcess(proc, "SIGKILL");
+      }, 5000);
+
+      proc.on("close", (code) => {
+        if (timedOut) return reject(new Error("wtype script timed out"));
+        clearTimeout(timeoutId);
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(
+            new Error(
+              `wtype script exited with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`
+            )
+          );
+        }
+      });
+
+      proc.on("error", (error) => {
+        if (timedOut) return;
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+    });
   }
 
   resolveWtypePasteScript() {
@@ -1040,29 +1123,15 @@ class ClipboardManager {
   }
 
   async pasteLinux(originalClipboard, options = {}, text = null) {
-    const { isWayland, xwaylandAvailable, isGnome, isKde, isWlroots } = getLinuxSessionInfo();
-    const webContents = options.webContents;
-    const xdotoolExists = this.commandExists("xdotool");
-    const wtypeExists = this.commandExists("wtype");
-    const ydotoolExists = false;
-    const ydotoolDaemonRunning = false;
-    const linuxFastPaste = this.resolveLinuxFastPasteBinary();
+    const { isWayland, isWlroots } = getLinuxSessionInfo();
+    const wtypeScript = this.resolveWtypeScript();
 
     debugLogger.debug(
       "Linux paste environment",
       {
         isWayland,
-        xwaylandAvailable,
-        isGnome,
-        isKde,
         isWlroots,
-        linuxFastPaste: !!linuxFastPaste,
-        canAccessUinput: this._canAccessUinput(),
-        xdotoolExists,
-        wtypeExists,
-        ydotoolExists,
-        ydotoolDaemonRunning,
-        display: process.env.DISPLAY,
+        wtypeScript: !!wtypeScript,
         waylandDisplay: process.env.WAYLAND_DISPLAY,
         xdgSessionType: process.env.XDG_SESSION_TYPE,
         xdgCurrentDesktop: process.env.XDG_CURRENT_DESKTOP,
@@ -1108,218 +1177,21 @@ class ClipboardManager {
       "termius",
     ];
 
-    // Pre-detect the target window BEFORE our window takes focus or blurs,
-    // so the fast-paste binary and fallback tools know where to send keystrokes.
-    const preDetectTargetWindow = () => {
-      if (!xdotoolExists || (isWayland && !xwaylandAvailable)) return null;
+    // Try wtype script first (direct text typing without clipboard)
+    if (wtypeScript && text) {
       try {
-        const result = spawnSync("xdotool", ["getactivewindow"]);
-        return result.status === 0 ? result.stdout.toString().trim() || null : null;
-      } catch {
-        return null;
-      }
-    };
-
-    const preDetectWindowClass = (windowId) => {
-      if (!xdotoolExists || (isWayland && !xwaylandAvailable)) return null;
-      try {
-        const args = windowId
-          ? ["getwindowclassname", windowId]
-          : ["getactivewindow", "getwindowclassname"];
-        const result = spawnSync("xdotool", args);
-        return result.status === 0 ? result.stdout.toString().toLowerCase().trim() || null : null;
-      } catch {
-        return null;
-      }
-    };
-
-    const targetWindowId = preDetectTargetWindow();
-    let detectedWindowClass = preDetectWindowClass(targetWindowId);
-
-    if (!detectedWindowClass && isKde) {
-      detectedWindowClass = this._detectKdeWindowClass();
-      if (detectedWindowClass) {
-        debugLogger.debug("KDE window class detected", { detectedWindowClass }, "clipboard");
-      }
-    }
-
-    if (linuxFastPaste) {
-      const earlyIsTerminal = detectedWindowClass
-        ? terminalClasses.some((t) => detectedWindowClass.includes(t))
-        : false;
-
-      const spawnFastPaste = (args, label) =>
-        new Promise((resolve, reject) => {
-          debugLogger.debug(
-            `Attempting native linux-fast-paste (${label})`,
-            { linuxFastPaste, args, targetWindowId, detectedWindowClass, earlyIsTerminal },
-            "clipboard"
-          );
-          const proc = spawn(linuxFastPaste, args);
-          let stderr = "";
-
-          proc.stderr?.on("data", (data) => {
-            stderr += data.toString();
-          });
-
-          let timedOut = false;
-          const timeoutId = setTimeout(() => {
-            timedOut = true;
-            killProcess(proc, "SIGKILL");
-          }, 2000);
-
-          proc.on("close", (code) => {
-            if (timedOut) return reject(new Error("linux-fast-paste timed out"));
-            clearTimeout(timeoutId);
-            if (code === 0) {
-              resolve();
-            } else {
-              reject(
-                new Error(
-                  `linux-fast-paste exited with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`
-                )
-              );
-            }
-          });
-
-          proc.on("error", (error) => {
-            if (timedOut) return;
-            clearTimeout(timeoutId);
-            reject(error);
-          });
-        });
-
-      if (isWayland) {
-        const tryWtypePaste = async () => {
-          await spawnFastPaste([text], "wtype");
-          this.safeLog("✅ Paste successful using linux-fast-paste (wtype)");
-          debugLogger.info(
-            "Paste successful",
-            { tool: "linux-fast-paste", method: "wtype", detectedWindowClass },
-            "clipboard"
-          );
-          restoreClipboard();
-        };
-
-        const tryPortalPaste = async () => {
-          const MAX_PORTAL_RETRIES = 3;
-          for (let attempt = 0; attempt < MAX_PORTAL_RETRIES; attempt++) {
-            try {
-              await this._runPortalPaste(linuxFastPaste, text);
-              this.safeLog("✅ Paste successful using linux-fast-paste (wtype)");
-              debugLogger.info(
-                "Paste successful",
-                { tool: "linux-fast-paste", method: "wtype" },
-                "clipboard"
-              );
-              restoreClipboard();
-              return true;
-            } catch (portalError) {
-              if (portalError?.message === "portal-dismissed") {
-                debugLogger.warn(
-                  "Portal dialog dismissed without response, retrying",
-                  { attempt: attempt + 1, maxRetries: MAX_PORTAL_RETRIES },
-                  "clipboard"
-                );
-                continue;
-              }
-              if (portalError?.message === "portal-denied") {
-                this.portalDenied = true;
-                debugLogger.warn(
-                  "User denied portal access, skipping portal for this session",
-                  {},
-                  "clipboard"
-                );
-              } else {
-              debugLogger.warn(
-                "linux-fast-paste wtype failed, falling back",
-                { error: portalError?.message },
-                "clipboard"
-              );
-              }
-              return false;
-            }
-          }
-          return false;
-        };
-
-        // KDE with XWayland: portal first because clipboard and input are both
-        // on X11. uinput causes clipboard desync (X11 clipboard vs Wayland input).
-        // GNOME: uinput first because the portal often times out or shows a
-        // confusing permission dialog, causing a 10s+ delay (issue #494).
-        if (isKde && linuxFastPaste && !this.portalDenied) {
-          if (await tryPortalPaste()) return "wtype";
-          try {
-            await tryWtypePaste();
-            return "wtype";
-          } catch (wtypeError) {
-            debugLogger.warn("wtype paste failed", { error: wtypeError?.message }, "clipboard");
-          }
-        } else if (isGnome && linuxFastPaste) {
-          try {
-            await tryWtypePaste();
-            return "wtype";
-          } catch (wtypeError) {
-            debugLogger.warn(
-              "wtype paste failed on GNOME, trying portal",
-              { error: wtypeError?.message },
-              "clipboard"
-            );
-          }
-          if (!this.portalDenied && (await tryPortalPaste())) return "portal";
-        } else {
-          // Other compositors (wlroots, etc.): try wtype only
-          try {
-            await tryWtypePaste();
-            return "wtype";
-          } catch (wtypeError) {
-            debugLogger.warn("wtype paste failed", { error: wtypeError?.message }, "clipboard");
-          }
-        }
-
-        // XTest/XWayland fallback: works for XWayland apps on any Wayland compositor
-        if (xwaylandAvailable) {
-          try {
-            await spawnFastPaste([text], "wtype fallback");
-            this.safeLog("✅ Paste successful using linux-fast-paste (wtype fallback)");
-            debugLogger.info(
-              "Paste successful",
-              { tool: "linux-fast-paste", method: "wtype-fallback" },
-              "clipboard"
-            );
-            restoreClipboard();
-            return "wtype-fallback";
-          } catch (wtypeError) {
-            debugLogger.warn(
-              "Wtype fallback also failed",
-              { error: wtypeError?.message },
-              "clipboard"
-            );
-          }
-        }
-
-        this.safeLog("⚠️ Native linux-fast-paste failed, falling back to system tools");
-      } else {
-        try {
-          await spawnFastPaste([text], "wtype");
-          this.safeLog("✅ Paste successful using linux-fast-paste (wtype)");
-          debugLogger.info(
-            "Paste successful",
-            { tool: "linux-fast-paste", method: "wtype" },
-            "clipboard"
-          );
-          restoreClipboard();
-          return "wtype";
-        } catch (error) {
-          this.safeLog(
-            `⚠️ Native linux-fast-paste failed: ${error?.message || error}, falling back to system tools`
-          );
-          debugLogger.warn(
-            "Native linux-fast-paste failed, falling back",
-            { error: error?.message },
-            "clipboard"
-          );
-        }
+        await this.spawnWtypeScript(text, "wtype");
+        this.safeLog("✅ Paste successful using wtype script");
+        debugLogger.info(
+          "Paste successful",
+          { tool: "wtype-script" },
+          "clipboard"
+        );
+        restoreClipboard();
+        return "wtype-script";
+      } catch (error) {
+        debugLogger.warn("wtype script failed", { error: error.message }, "clipboard");
+        this.safeLog("⚠️ Wtype script failed, falling back to system tools");
       }
     }
 
@@ -1742,7 +1614,7 @@ Would you like to open System Settings now?`;
 
   preWarmAccessibility() {
     if (process.platform === "linux") {
-      this.resolveLinuxFastPasteBinary();
+      this.resolveWtypeScript();
       return;
     }
     if (process.platform !== "darwin") return;
@@ -1789,55 +1661,29 @@ Would you like to open System Settings now?`;
       };
     }
 
-    const { isWayland, xwaylandAvailable, isGnome, isKde, isWlroots } = getLinuxSessionInfo();
-    const linuxFastPaste = this.resolveLinuxFastPasteBinary();
-    const hasNativeBinary = !!linuxFastPaste;
+    const { isWayland, isWlroots } = getLinuxSessionInfo();
+    const wtypeScript = this.resolveWtypeScript();
+    const hasWtypeScript = !!wtypeScript;
 
     const tools = [];
     const canUseWtype = isWayland && isWlroots;
-    const canUseXdotool = !isWayland || xwaylandAvailable;
 
-    if (!isWayland) {
-      if (canUseXdotool && this.commandExists("xdotool")) tools.push("xdotool");
-    } else if (isWlroots) {
-      if (canUseWtype && this.commandExists("wtype")) tools.push("wtype");
-      if (canUseXdotool && this.commandExists("xdotool")) tools.push("xdotool");
-    } else {
-      if (canUseXdotool && this.commandExists("xdotool")) tools.push("xdotool");
-      if (canUseWtype && this.commandExists("wtype")) tools.push("wtype");
-    }
-
-    const hasUinput = this._canAccessUinput();
-    const nativeBinaryUsable = hasNativeBinary && (!isWayland || hasUinput || xwaylandAvailable);
-    const available = nativeBinaryUsable || tools.length > 0;
+    const available = tools.length > 0;
     let recommendedInstall;
-    if (!nativeBinaryUsable && tools.length === 0) {
-      if (!isWayland) {
-        recommendedInstall = "xdotool";
-      } else if (isWlroots) {
+    if (!available) {
+      if (isWlroots) {
         recommendedInstall = "wtype";
       } else {
         recommendedInstall = "xdotool";
       }
-    } else if (isWayland && hasNativeBinary && !hasUinput && tools.length === 0) {
-      recommendedInstall = "usermod -aG input $USER";
     }
 
     return {
       platform: "linux",
       available,
-      method: nativeBinaryUsable
-        ? isWayland && hasUinput
-          ? "uinput"
-          : "xtest"
-        : available
-          ? tools[0]
-          : null,
+      method: available ? tools[0] : null,
       requiresPermission: false,
       isWayland,
-      xwaylandAvailable,
-      hasNativeBinary,
-      hasUinput,
       tools,
       recommendedInstall,
     };

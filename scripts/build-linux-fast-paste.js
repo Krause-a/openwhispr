@@ -11,7 +11,7 @@ if (!isLinux) {
 const projectRoot = path.resolve(__dirname, "..");
 const wtypeScript = path.join(projectRoot, "scripts", "linux-fast-paste-wtype.sh");
 const outputDir = path.join(projectRoot, "resources", "bin");
-const outputScript = path.join(outputDir, "linux-fast-paste");
+const outputScript = path.join(outputDir, "linux-fast-paste-wtype.sh");
 
 function log(message) {
   console.log(`[linux-fast-paste] ${message}`);
