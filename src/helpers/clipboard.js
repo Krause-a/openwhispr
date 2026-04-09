@@ -753,19 +753,28 @@ class ClipboardManager {
     let method = "unknown";
     const webContents = options.webContents;
 
+    // Check if we can use wtype for direct typing without clipboard
+    const canUseWtype = platform === "linux" && this._isWayland() && this.resolveWtypeScript();
+    const skipClipboardWrite = options.skipClipboardBackup || canUseWtype;
+
     try {
-      const shouldRestore = options.restoreClipboard !== false;
+      const shouldRestore = options.restoreClipboard !== false && !skipClipboardWrite;
       const originalClipboard = shouldRestore ? this._saveClipboard() : null;
       if (shouldRestore) {
         this.safeLog("💾 Saved original clipboard:", originalClipboard.type);
       }
 
-      if (platform === "linux" && this._isWayland()) {
-        this._writeClipboardWayland(text, webContents);
+      // Only write to clipboard if not using wtype (direct typing) or if explicitly requested
+      if (!skipClipboardWrite) {
+        if (platform === "linux" && this._isWayland()) {
+          this._writeClipboardWayland(text, webContents);
+        } else {
+          clipboard.writeText(text);
+        }
+        this.safeLog("📋 Text copied to clipboard:", text.substring(0, 50) + "...");
       } else {
-        clipboard.writeText(text);
+        debugLogger.debug("Skipping clipboard write - using direct typing (wtype)", {}, "clipboard");
       }
-      this.safeLog("📋 Text copied to clipboard:", text.substring(0, 50) + "...");
 
       if (platform === "darwin") {
         method = this.resolveFastPasteBinary() ? "cgevent" : "applescript";
@@ -798,12 +807,25 @@ class ClipboardManager {
         }
         await this.pasteWindows(originalClipboard);
       } else {
-        method = (await this.pasteLinux(originalClipboard, options, text)) || "linux-tools";
+        // For Linux, try wtype first (no clipboard needed), fallback to clipboard if it fails
+        const linuxMethod = await this.pasteLinux(originalClipboard, options, text, skipClipboardWrite);
+        if (linuxMethod) {
+          method = linuxMethod;
+        } else if (skipClipboardWrite) {
+          // Wtype failed/not available, fallback to clipboard
+          debugLogger.debug("Wtype unavailable/failed, falling back to clipboard", {}, "clipboard");
+          this._writeClipboardWayland(text, webContents);
+          this.safeLog("📋 Text copied to clipboard (wtype fallback):", text.substring(0, 50) + "...");
+          method = "clipboard-fallback";
+        } else {
+          method = "linux-tools";
+        }
       }
 
       this.safeLog("✅ Paste operation complete", {
         platform,
         method,
+        usedClipboard: !skipClipboardWrite || method === "clipboard-fallback",
         elapsedMs: Date.now() - startTime,
         textLength: text.length,
       });
@@ -811,9 +833,22 @@ class ClipboardManager {
       this.safeLog("❌ Paste operation failed", {
         platform,
         method,
+        usedClipboard: !skipClipboardWrite,
         elapsedMs: Date.now() - startTime,
         error: error.message,
       });
+      
+      // If wtype failed and we skipped clipboard, write to clipboard now as fallback
+      if (skipClipboardWrite && canUseWtype && method !== "clipboard-fallback") {
+        debugLogger.debug("Paste failed, attempting clipboard fallback", { error: error.message }, "clipboard");
+        try {
+          this._writeClipboardWayland(text, webContents);
+          this.safeLog("📋 Text copied to clipboard (error fallback):", text.substring(0, 50) + "...");
+        } catch (clipboardError) {
+          debugLogger.error("Failed to write to clipboard fallback", { error: clipboardError.message }, "clipboard");
+        }
+      }
+      
       throw error;
     }
   }
@@ -1194,7 +1229,7 @@ class ClipboardManager {
     });
   }
 
-  async pasteLinux(originalClipboard, options = {}, text = null) {
+  async pasteLinux(originalClipboard, options = {}, text = null, skipClipboardWrite = false) {
     const { isWayland, isWlroots } = getLinuxSessionInfo();
     const wtypeBinary = this.resolveWtypeScript();
 
@@ -1208,6 +1243,7 @@ class ClipboardManager {
         textProvided: !!text,
         textLength: text?.length,
         textPreview: text?.substring(0, 50),
+        skipClipboardWrite,
         waylandDisplay: process.env.WAYLAND_DISPLAY,
         xdgSessionType: process.env.XDG_SESSION_TYPE,
         xdgCurrentDesktop: process.env.XDG_CURRENT_DESKTOP,
@@ -1220,19 +1256,28 @@ class ClipboardManager {
       debugLogger.debug("Wtype binary path valid and text provided, attempting paste", {
         binary: wtypeBinary,
         textLength: text.length,
+        skipClipboardWrite,
       }, "clipboard");
       try {
         await this.spawnWtypeScript(text, "wtype");
-        this.safeLog("✅ Paste successful using wtype binary");
+        this.safeLog("✅ Paste successful using wtype binary (no clipboard touched)");
         debugLogger.info(
           "Paste successful",
-          { tool: "wtype-binary" },
+          { tool: "wtype-binary", usedClipboard: false },
           "clipboard"
         );
         return "wtype-binary";
       } catch (error) {
-        debugLogger.error("wtype binary failed", { error: error.message }, "clipboard");
+        debugLogger.error("wtype binary failed", { error: error.message, skipClipboardWrite }, "clipboard");
         this.safeLog("❌ Wtype binary failed");
+        
+        // If wtype failed and we skipped clipboard, don't throw - let caller handle clipboard fallback
+        if (skipClipboardWrite) {
+          debugLogger.debug("Wtype failed with skipClipboardWrite=true, allowing fallback", {}, "clipboard");
+          // Return null to indicate we should try clipboard fallback
+          return null;
+        }
+        
         const err = new Error(`Paste failed: ${error.message}`);
         err.code = "PASTE_SIMULATION_FAILED";
         throw err;
@@ -1246,9 +1291,16 @@ class ClipboardManager {
       textProvided: !!text,
       textLength: text?.length,
       reason: failReason,
+      skipClipboardWrite,
       __dirname,
       processResourcesPath: process.resourcesPath,
     }, "clipboard");
+    
+    if (skipClipboardWrite) {
+      // Let caller handle clipboard fallback
+      return null;
+    }
+    
     const err = new Error(`wtype binary not found - paste unavailable (${failReason})`);
     err.code = "PASTE_SIMULATION_FAILED";
     throw err;
