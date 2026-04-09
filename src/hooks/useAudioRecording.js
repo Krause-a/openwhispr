@@ -125,20 +125,22 @@ export const useAudioRecording = (toast, options = {}) => {
 
           const isStreaming = result.source?.includes("streaming");
           const { keepTranscriptionInClipboard } = getSettings();
-          const pasteStart = performance.now();
-          await audioManagerRef.current.safePaste(result.text, {
-            ...(isStreaming ? { fromStreaming: true } : {}),
-            restoreClipboard: !keepTranscriptionInClipboard,
-          });
-          logger.info(
-            "Paste timing",
-            {
-              pasteMs: Math.round(performance.now() - pasteStart),
-              source: result.source,
-              textLength: result.text.length,
-            },
-            "streaming"
-          );
+          // NOTE: Paste is now handled in audioManager.js for custom endpoint proxy
+          // to avoid double-pasting. The paste below is commented out.
+          // const pasteStart = performance.now();
+          // await audioManagerRef.current.safePaste(result.text, {
+          //   ...(isStreaming ? { fromStreaming: true } : {}),
+          //   restoreClipboard: !keepTranscriptionInClipboard,
+          // });
+          // logger.info(
+          //   "Paste timing",
+          //   {
+          //     pasteMs: Math.round(performance.now() - pasteStart),
+          //     source: result.source,
+          //     textLength: result.text.length,
+          //   },
+          //   "streaming"
+          // );
 
           audioManagerRef.current.saveTranscription(result.text, result.rawText ?? result.text);
 
