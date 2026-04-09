@@ -271,38 +271,80 @@ class ClipboardManager {
       path.join(__dirname, "..", "..", "..", "resources", "bin", "linux-fast-paste-wtype.sh"),
     ]);
 
+    // VERBOSE DEBUG: Log base path information
+    debugLogger.debug("=== WTYPESCRIPT RESOLUTION DEBUG ===", {
+      __dirname,
+      processResourcesPath: process.resourcesPath,
+      processPlatform: process.platform,
+      processExecPath: process.execPath,
+    }, "clipboard");
+
     if (process.resourcesPath) {
-      [
+      const resourceCandidates = [
         path.join(process.resourcesPath, "bin", "linux-fast-paste-wtype.sh"),
         path.join(process.resourcesPath, "resources", "bin", "linux-fast-paste-wtype.sh"),
         path.join(process.resourcesPath, "app.asar.unpacked", "resources", "bin", "linux-fast-paste-wtype.sh"),
-      ].forEach((candidate) => candidates.add(candidate));
+      ];
+      debugLogger.debug("Resource path candidates", {
+        resourcePath: process.resourcesPath,
+        candidates: resourceCandidates,
+      }, "clipboard");
+      resourceCandidates.forEach((candidate) => candidates.add(candidate));
     }
 
-    // Debug: log all candidates being checked
     const candidateArray = Array.from(candidates);
-    debugLogger.debug("Checking wtype script candidates", { candidates: candidateArray, __dirname }, "clipboard");
+    debugLogger.debug("Checking wtype script candidates", { candidates: candidateArray }, "clipboard");
 
     for (const candidate of candidates) {
       try {
         const stats = fs.statSync(candidate);
-        if (stats.isFile()) {
+        const isFile = stats.isFile();
+        const isDirectory = stats.isDirectory();
+        const mode = stats.mode;
+        
+        debugLogger.debug("Stat result", {
+          path: candidate,
+          exists: true,
+          isFile,
+          isDirectory,
+          mode: mode.toString(8),
+        }, "clipboard");
+
+        if (isFile) {
           try {
             fs.accessSync(candidate, fs.constants.X_OK);
-          } catch {
-            fs.chmodSync(candidate, 0o755);
+            debugLogger.debug("File is executable", { path: candidate }, "clipboard");
+          } catch (accessErr) {
+            debugLogger.debug("File not executable, attempting chmod", { path: candidate, error: accessErr.message }, "clipboard");
+            try {
+              fs.chmodSync(candidate, 0o755);
+              debugLogger.debug("Chmod succeeded", { path: candidate }, "clipboard");
+            } catch (chmodErr) {
+              debugLogger.debug("Chmod failed", { path: candidate, error: chmodErr.message }, "clipboard");
+            }
           }
           this.wtypeScriptPath = candidate;
           debugLogger.debug("Found wtype script", { path: candidate }, "clipboard");
           return candidate;
+        } else {
+          debugLogger.debug("Path exists but is not a file", { path: candidate, isDirectory }, "clipboard");
         }
       } catch (e) {
-        debugLogger.debug("Wtype script candidate not found", { path: candidate, error: e.message }, "clipboard");
+        debugLogger.debug("Wtype script candidate stat failed", { 
+          path: candidate, 
+          error: e.message,
+          errorCode: e.code,
+          errorType: e.constructor.name,
+        }, "clipboard");
         continue;
       }
     }
 
-    debugLogger.error("wtype script not found in any location", { checked: candidateArray }, "clipboard");
+    debugLogger.error("wtype script not found in any location", { 
+      checked: candidateArray,
+      __dirname,
+      processResourcesPath: process.resourcesPath,
+    }, "clipboard");
     return null;
   }
 
@@ -314,29 +356,52 @@ class ClipboardManager {
         return;
       }
 
+      // Escape text for safe shell passing
+      const escapedText = text.replace(/'/g, "'\"'\"'");
+      const command = `bash '${wtypeScript.replace(/'/g, "'\"'\"'")}' '${escapedText}'`;
+      
       debugLogger.debug(
-        `Attempting wtype script paste (${label})`,
-        { wtypeScript, textLength: text?.length },
+        `=== SPAWNING WTYPE SCRIPT === (${label})`,
+        { 
+          wtypeScript, 
+          textLength: text?.length,
+          commandPreview: command.substring(0, 200),
+          spawnArgs: ["bash", wtypeScript, text.substring(0, 50) + "..."],
+        },
         "clipboard"
       );
 
       const proc = spawn("bash", [wtypeScript, text]);
       let stderr = "";
+      let stdout = "";
+
+      proc.stdout?.on("data", (data) => {
+        stdout += data.toString();
+      });
 
       proc.stderr?.on("data", (data) => {
         stderr += data.toString();
+        debugLogger.debug("wtype script stderr", { data: data.toString() }, "clipboard");
       });
 
       let timedOut = false;
       const timeoutId = setTimeout(() => {
         timedOut = true;
+        debugLogger.debug("wtype script timeout reached, killing process", { wtypeScript }, "clipboard");
         killProcess(proc, "SIGKILL");
       }, 5000);
 
       proc.on("close", (code) => {
+        debugLogger.debug("wtype script process closed", { 
+          code, 
+          timedOut, 
+          stdout: stdout.substring(0, 200),
+          stderr: stderr.substring(0, 200),
+        }, "clipboard");
         if (timedOut) return reject(new Error("wtype script timed out"));
         clearTimeout(timeoutId);
         if (code === 0) {
+          debugLogger.debug("wtype script succeeded", { wtypeScript }, "clipboard");
           resolve();
         } else {
           reject(
@@ -350,6 +415,7 @@ class ClipboardManager {
       proc.on("error", (error) => {
         if (timedOut) return;
         clearTimeout(timeoutId);
+        debugLogger.error("wtype script process error", { error: error.message, code: error.code }, "clipboard");
         reject(error);
       });
     });
@@ -1132,11 +1198,15 @@ class ClipboardManager {
     const wtypeScript = this.resolveWtypeScript();
 
     debugLogger.debug(
-      "Linux paste environment",
+      "=== LINUX PASTE START ===",
       {
         isWayland,
         isWlroots,
-        wtypeScript: !!wtypeScript,
+        wtypeScriptPath: wtypeScript,
+        wtypeScriptExists: !!wtypeScript,
+        textProvided: !!text,
+        textLength: text?.length,
+        textPreview: text?.substring(0, 50),
         waylandDisplay: process.env.WAYLAND_DISPLAY,
         xdgSessionType: process.env.XDG_SESSION_TYPE,
         xdgCurrentDesktop: process.env.XDG_CURRENT_DESKTOP,
@@ -1146,6 +1216,10 @@ class ClipboardManager {
 
     // Try wtype script (direct text typing without clipboard)
     if (wtypeScript && text) {
+      debugLogger.debug("Wtype script path valid and text provided, attempting paste", {
+        script: wtypeScript,
+        textLength: text.length,
+      }, "clipboard");
       try {
         await this.spawnWtypeScript(text, "wtype");
         this.safeLog("✅ Paste successful using wtype script");
@@ -1164,8 +1238,17 @@ class ClipboardManager {
       }
     }
 
-    // No wtype script available
-    const err = new Error("wtype script not found - paste unavailable");
+    // No wtype script available or no text
+    const failReason = !wtypeScript ? "script_not_found" : !text ? "no_text" : "unknown";
+    debugLogger.error("Wtype script not available for paste", {
+      wtypeScriptPath: wtypeScript,
+      textProvided: !!text,
+      textLength: text?.length,
+      reason: failReason,
+      __dirname,
+      processResourcesPath: process.resourcesPath,
+    }, "clipboard");
+    const err = new Error(`wtype script not found - paste unavailable (${failReason})`);
     err.code = "PASTE_SIMULATION_FAILED";
     throw err;
   }
