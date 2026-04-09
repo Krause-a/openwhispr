@@ -141,6 +141,13 @@ class WindowManager {
     return { success: true, bounds: { x: newX, y: newY, ...newSize } };
   }
 
+  setMainWindowInteractivity(shouldCapture) {
+    // Stub: no-op to prevent IPC handler error
+    // This method is called from the renderer to control click-through behavior
+    // Currently disabled - window interactivity is handled at creation time
+    return { success: true };
+  }
+
   async loadWindowContent(window, isControlPanel = false, isAgent = false) {
     if (process.env.NODE_ENV === "development") {
       let appUrl = DevServerManager.getAppUrl(isControlPanel);

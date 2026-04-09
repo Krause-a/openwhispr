@@ -49,4 +49,3 @@ fi
 echo "[post-build-linux] linux-fast-paste verified (wtype-based)"
 
 echo "[post-build-linux] Post-build tasks complete!"
-echo "[post-build-linux] You can now launch OpenWhispr via: gtk-launch open-whispr"

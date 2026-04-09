@@ -429,6 +429,10 @@ class IPCHandlers {
       return this.windowManager.resizeMainWindow(sizeKey);
     });
 
+    ipcMain.handle("set-main-window-interactivity", (event, interactive) => {
+      return this.windowManager.setMainWindowInteractivity(interactive);
+    });
+
     ipcMain.handle("get-openai-key", async (event) => {
       return this.environmentManager.getOpenAIKey();
     });
