@@ -32,21 +32,23 @@ function main() {
   const lines = input.split("\n");
   log("Split into", lines.length, "lines");
 
-  // Type each line - first line has no prefix, subsequent lines get newline first
+  // Type each line
   let isFirst = true;
   for (const line of lines) {
-    let textToType = line;
-    
+    // Send Shift+Enter before subsequent lines (to create newlines in editors)
     if (!isFirst) {
-      // Add newline before subsequent lines
-      textToType = "\n" + line;
-      log("Adding newline prefix for subsequent line");
+      log("Sending Shift+Enter before line");
+      const shiftResult = spawnSync("wtype", ["-M", "shift", "-k", "Return", "-m", "shift"], { encoding: "utf8" });
+      
+      if (shiftResult.error) {
+        log("ERROR spawning wtype for Shift+Enter:", shiftResult.error.message);
+      }
     }
     
-    log(`Typing line (${isFirst ? "first" : "subsequent"}):`, textToType.substring(0, 50) + (textToType.length > 50 ? "..." : ""));
+    log(`Typing line (${isFirst ? "first" : "subsequent"}):`, line.substring(0, 50) + (line.length > 50 ? "..." : ""));
 
-    // Type the text using wtype
-    const result = spawnSync("wtype", [textToType], { encoding: "utf8" });
+    // Type the line using wtype
+    const result = spawnSync("wtype", [line], { encoding: "utf8" });
     
     if (result.error) {
       log("ERROR spawning wtype:", result.error.message);
