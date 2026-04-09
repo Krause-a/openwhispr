@@ -93,7 +93,7 @@
     "resources/bin/macos-mic-listener",
     "resources/bin/macos-text-monitor",
     "resources/bin/macos-media-remote",
-    "resources/bin/linux-fast-paste-wtype.sh",
+    "resources/bin/linux-fast-paste-wtype",
     "resources/bin/linux-text-monitor",
     {
       "from": "resources/bin/",

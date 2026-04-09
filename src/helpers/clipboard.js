@@ -266,9 +266,10 @@ class ClipboardManager {
       return null;
     }
 
+    // Look for compiled binary (not shell script)
     const candidates = new Set([
-      path.join(__dirname, "..", "..", "resources", "bin", "linux-fast-paste-wtype.sh"),
-      path.join(__dirname, "..", "..", "..", "resources", "bin", "linux-fast-paste-wtype.sh"),
+      path.join(__dirname, "..", "..", "resources", "bin", "linux-fast-paste-wtype"),
+      path.join(__dirname, "..", "..", "..", "resources", "bin", "linux-fast-paste-wtype"),
     ]);
 
     // VERBOSE DEBUG: Log base path information
@@ -281,6 +282,10 @@ class ClipboardManager {
 
     if (process.resourcesPath) {
       const resourceCandidates = [
+        path.join(process.resourcesPath, "bin", "linux-fast-paste-wtype"),
+        path.join(process.resourcesPath, "resources", "bin", "linux-fast-paste-wtype"),
+        path.join(process.resourcesPath, "app.asar.unpacked", "resources", "bin", "linux-fast-paste-wtype"),
+        // Also check for old shell script name (backward compat)
         path.join(process.resourcesPath, "bin", "linux-fast-paste-wtype.sh"),
         path.join(process.resourcesPath, "resources", "bin", "linux-fast-paste-wtype.sh"),
         path.join(process.resourcesPath, "app.asar.unpacked", "resources", "bin", "linux-fast-paste-wtype.sh"),
@@ -350,28 +355,24 @@ class ClipboardManager {
 
   spawnWtypeScript(text, label) {
     return new Promise((resolve, reject) => {
-      const wtypeScript = this.resolveWtypeScript();
-      if (!wtypeScript) {
-        reject(new Error("wtype script not found"));
+      const wtypeBinary = this.resolveWtypeScript();
+      if (!wtypeBinary) {
+        reject(new Error("wtype binary not found"));
         return;
       }
 
-      // Escape text for safe shell passing
-      const escapedText = text.replace(/'/g, "'\"'\"'");
-      const command = `bash '${wtypeScript.replace(/'/g, "'\"'\"'")}' '${escapedText}'`;
-      
       debugLogger.debug(
-        `=== SPAWNING WTYPE SCRIPT === (${label})`,
+        `=== SPAWNING WTYPE BINARY === (${label})`,
         { 
-          wtypeScript, 
+          wtypeBinary, 
           textLength: text?.length,
-          commandPreview: command.substring(0, 200),
-          spawnArgs: ["bash", wtypeScript, text.substring(0, 50) + "..."],
+          spawnArgs: [wtypeBinary, text],
+          fullText: text,
         },
         "clipboard"
       );
 
-      const proc = spawn("bash", [wtypeScript, text]);
+      const proc = spawn(wtypeBinary, [text]);
       let stderr = "";
       let stdout = "";
 
@@ -381,32 +382,32 @@ class ClipboardManager {
 
       proc.stderr?.on("data", (data) => {
         stderr += data.toString();
-        debugLogger.debug("wtype script stderr", { data: data.toString() }, "clipboard");
+        debugLogger.debug("wtype binary stderr", { data: data.toString() }, "clipboard");
       });
 
       let timedOut = false;
       const timeoutId = setTimeout(() => {
         timedOut = true;
-        debugLogger.debug("wtype script timeout reached, killing process", { wtypeScript }, "clipboard");
+        debugLogger.debug("wtype binary timeout reached, killing process", { wtypeBinary }, "clipboard");
         killProcess(proc, "SIGKILL");
       }, 5000);
 
       proc.on("close", (code) => {
-        debugLogger.debug("wtype script process closed", { 
+        debugLogger.debug("wtype binary process closed", { 
           code, 
           timedOut, 
-          stdout: stdout.substring(0, 200),
-          stderr: stderr.substring(0, 200),
+          stdout,
+          stderr,
         }, "clipboard");
-        if (timedOut) return reject(new Error("wtype script timed out"));
+        if (timedOut) return reject(new Error("wtype binary timed out"));
         clearTimeout(timeoutId);
         if (code === 0) {
-          debugLogger.debug("wtype script succeeded", { wtypeScript }, "clipboard");
+          debugLogger.debug("wtype binary succeeded", { wtypeBinary }, "clipboard");
           resolve();
         } else {
           reject(
             new Error(
-              `wtype script exited with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`
+              `wtype binary exited with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`
             )
           );
         }
@@ -415,7 +416,7 @@ class ClipboardManager {
       proc.on("error", (error) => {
         if (timedOut) return;
         clearTimeout(timeoutId);
-        debugLogger.error("wtype script process error", { error: error.message, code: error.code }, "clipboard");
+        debugLogger.error("wtype binary process error", { error: error.message, code: error.code }, "clipboard");
         reject(error);
       });
     });
@@ -1195,15 +1196,15 @@ class ClipboardManager {
 
   async pasteLinux(originalClipboard, options = {}, text = null) {
     const { isWayland, isWlroots } = getLinuxSessionInfo();
-    const wtypeScript = this.resolveWtypeScript();
+    const wtypeBinary = this.resolveWtypeScript();
 
     debugLogger.debug(
       "=== LINUX PASTE START ===",
       {
         isWayland,
         isWlroots,
-        wtypeScriptPath: wtypeScript,
-        wtypeScriptExists: !!wtypeScript,
+        wtypeBinaryPath: wtypeBinary,
+        wtypeBinaryExists: !!wtypeBinary,
         textProvided: !!text,
         textLength: text?.length,
         textPreview: text?.substring(0, 50),
@@ -1214,41 +1215,41 @@ class ClipboardManager {
       "clipboard"
     );
 
-    // Try wtype script (direct text typing without clipboard)
-    if (wtypeScript && text) {
-      debugLogger.debug("Wtype script path valid and text provided, attempting paste", {
-        script: wtypeScript,
+    // Try wtype binary (direct text typing without clipboard)
+    if (wtypeBinary && text) {
+      debugLogger.debug("Wtype binary path valid and text provided, attempting paste", {
+        binary: wtypeBinary,
         textLength: text.length,
       }, "clipboard");
       try {
         await this.spawnWtypeScript(text, "wtype");
-        this.safeLog("✅ Paste successful using wtype script");
+        this.safeLog("✅ Paste successful using wtype binary");
         debugLogger.info(
           "Paste successful",
-          { tool: "wtype-script" },
+          { tool: "wtype-binary" },
           "clipboard"
         );
-        return "wtype-script";
+        return "wtype-binary";
       } catch (error) {
-        debugLogger.error("wtype script failed", { error: error.message }, "clipboard");
-        this.safeLog("❌ Wtype script failed");
+        debugLogger.error("wtype binary failed", { error: error.message }, "clipboard");
+        this.safeLog("❌ Wtype binary failed");
         const err = new Error(`Paste failed: ${error.message}`);
         err.code = "PASTE_SIMULATION_FAILED";
         throw err;
       }
     }
 
-    // No wtype script available or no text
-    const failReason = !wtypeScript ? "script_not_found" : !text ? "no_text" : "unknown";
-    debugLogger.error("Wtype script not available for paste", {
-      wtypeScriptPath: wtypeScript,
+    // No wtype binary available or no text
+    const failReason = !wtypeBinary ? "binary_not_found" : !text ? "no_text" : "unknown";
+    debugLogger.error("Wtype binary not available for paste", {
+      wtypeBinaryPath: wtypeBinary,
       textProvided: !!text,
       textLength: text?.length,
       reason: failReason,
       __dirname,
       processResourcesPath: process.resourcesPath,
     }, "clipboard");
-    const err = new Error(`wtype script not found - paste unavailable (${failReason})`);
+    const err = new Error(`wtype binary not found - paste unavailable (${failReason})`);
     err.code = "PASTE_SIMULATION_FAILED";
     throw err;
   }

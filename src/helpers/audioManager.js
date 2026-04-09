@@ -512,6 +512,15 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
         model: activeModel || null,
       };
 
+      debugLogger.debug("=== TRANSCRIPTION RECEIVED ===", {
+        text: result?.text,
+        textLength: result?.text?.length,
+        textPreview: result?.text?.substring(0, 100),
+        source: result?.source,
+        success: result?.success,
+        hasTimings: !!result?.timings,
+      }, "audio");
+
       this.onTranscriptionComplete?.(result);
 
       if (result?.source === "openwhispr") {

@@ -37,15 +37,41 @@ else
     echo "[post-build-linux] Warning: ~/.local/share/applications/ not found, skipping install"
 fi
 
-# Task 2: Verify wtype-based linux-fast-paste is present
-# Note: linux-fast-paste is now a static wtype-based script in resources/bin/
-echo "[post-build-linux] Verifying wtype-based linux-fast-paste..."
+# Task 2: Copy wtype-based linux-fast-paste binary
+# Note: This runs AFTER electron-builder, so we copy directly to unpacked dir
+echo "[post-build-linux] Installing wtype-based linux-fast-paste binary..."
 
-if [ ! -f "${RESOURCES_BIN_DIR}/linux-fast-paste" ]; then
-    echo "[post-build-linux] Warning: linux-fast-paste not found in resources, copying from repo"
-    cp "${PROJECT_ROOT}/resources/bin/linux-fast-paste" "${RESOURCES_BIN_DIR}/linux-fast-paste" 2>/dev/null || true
+# Source binary location (compiled by build-linux-fast-paste.js)
+WTYPE_BINARY="${PROJECT_ROOT}/resources/bin/linux-fast-paste-wtype"
+DEST_BINARY="${RESOURCES_BIN_DIR}/linux-fast-paste-wtype"
+
+if [ ! -f "${WTYPE_BINARY}" ]; then
+    echo "[post-build-linux] ERROR: Compiled binary not found at ${WTYPE_BINARY}"
+    echo "[post-build-linux] Please run: npm run compile:linux-paste"
+    exit 1
 fi
 
-echo "[post-build-linux] linux-fast-paste verified (wtype-based)"
+# Create resources/bin if it doesn't exist
+if [ ! -d "${RESOURCES_BIN_DIR}" ]; then
+    echo "[post-build-linux] Creating resources/bin directory..."
+    mkdir -p "${RESOURCES_BIN_DIR}"
+fi
+
+# Copy the binary
+cp "${WTYPE_BINARY}" "${DEST_BINARY}"
+chmod +x "${DEST_BINARY}"
+echo "[post-build-linux] Installed ${DEST_BINARY}"
+
+# Cleanup old files
+if [ -f "${RESOURCES_BIN_DIR}/linux-fast-paste" ]; then
+    echo "[post-build-linux] Removing old linux-fast-paste binary..."
+    rm -f "${RESOURCES_BIN_DIR}/linux-fast-paste"
+fi
+if [ -f "${RESOURCES_BIN_DIR}/linux-fast-paste-wtype.sh" ]; then
+    echo "[post-build-linux] Removing old linux-fast-paste-wtype.sh script..."
+    rm -f "${RESOURCES_BIN_DIR}/linux-fast-paste-wtype.sh"
+fi
+
+echo "[post-build-linux] linux-fast-paste-wtype ready"
 
 echo "[post-build-linux] Post-build tasks complete!"
