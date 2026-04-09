@@ -1268,12 +1268,12 @@ class ClipboardManager {
           }
           if (!this.portalDenied && (await tryPortalPaste())) return "portal";
         } else {
-          // Other compositors (wlroots, etc.): try uinput only
+          // Other compositors (wlroots, etc.): try wtype only
           try {
-            await tryUinputPaste();
-            return "uinput";
-          } catch (uinputError) {
-            debugLogger.warn("uinput paste failed", { error: uinputError?.message }, "clipboard");
+            await tryWtypePaste();
+            return "wtype";
+          } catch (wtypeError) {
+            debugLogger.warn("wtype paste failed", { error: wtypeError?.message }, "clipboard");
           }
         }
 
