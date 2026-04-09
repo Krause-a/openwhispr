@@ -23,10 +23,9 @@ exports.default = async function (context) {
 HERE="\${BASH_SOURCE%/*}"
 FLAGS=()
 
-# Wayland: forces XWayland (overlay positioning requires X11)
-if [ "$XDG_SESSION_TYPE" = "wayland" ]; then
-  FLAGS+=(--ozone-platform=x11)
-fi
+# NOTE: --ozone-platform=x11 has been removed to enable native Wayland support
+# For Sway and other wlroots compositors, this allows proper keyboard input handling
+# If you need XWayland for specific reasons, add it to ~/.config/${binaryName}-flags.conf
 
 # User flags
 FLAGS_FILE="\${XDG_CONFIG_HOME:-$HOME/.config}/${binaryName}-flags.conf"

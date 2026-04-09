@@ -37,28 +37,16 @@ else
     echo "[post-build-linux] Warning: ~/.local/share/applications/ not found, skipping install"
 fi
 
-# Task 2: Create wtype-based linux-fast-paste replacement
-echo "[post-build-linux] Creating wtype-based linux-fast-paste..."
+# Task 2: Verify wtype-based linux-fast-paste is present
+# Note: linux-fast-paste is now a static wtype-based script in resources/bin/
+echo "[post-build-linux] Verifying wtype-based linux-fast-paste..."
 
-mkdir -p "${RESOURCES_BIN_DIR}"
-
-cat > "${RESOURCES_BIN_DIR}/linux-fast-paste" << 'PASTE_EOF'
-#!/bin/bash
-# Minimal wtype-based paste for Wayland
-
-# Check if we're in a terminal (simple check: common terminal env vars)
-if [ -n "$TERM" ] && [ "$TERM" != "dumb" ] && [ "$TERM" != "linux" ]; then
-    # Terminal detected - use Ctrl+Shift+V
-    wtype -M ctrl -M shift -k v -m shift -m ctrl
-else
-    # Regular window - use Ctrl+V
-    wtype -M ctrl -k v -m ctrl
+if [ ! -f "${RESOURCES_BIN_DIR}/linux-fast-paste" ]; then
+    echo "[post-build-linux] Warning: linux-fast-paste not found in resources, copying from repo"
+    cp "${PROJECT_ROOT}/resources/bin/linux-fast-paste" "${RESOURCES_BIN_DIR}/linux-fast-paste" 2>/dev/null || true
 fi
-PASTE_EOF
 
-chmod +x "${RESOURCES_BIN_DIR}/linux-fast-paste"
-
-echo "[post-build-linux] Created ${RESOURCES_BIN_DIR}/linux-fast-paste (wtype-based)"
+echo "[post-build-linux] linux-fast-paste verified (wtype-based)"
 
 echo "[post-build-linux] Post-build tasks complete!"
 echo "[post-build-linux] You can now launch OpenWhispr via: gtk-launch open-whispr"
