@@ -395,19 +395,13 @@ class ClipboardManager {
     }
   }
 
-  _runPortalPaste(fastPasteBinary, useShift) {
+  _runPortalPaste(fastPasteBinary, text) {
     return new Promise((resolve, reject) => {
-      const args = ["--portal"];
-      if (useShift) args.push("--terminal");
-
-      const restoreToken = this._readPortalToken();
-      if (restoreToken) {
-        args.push("--restore-token", restoreToken);
-      }
+      const args = text ? [text] : [];
 
       debugLogger.debug(
-        "Attempting linux-fast-paste --portal (RemoteDesktop D-Bus)",
-        { binary: fastPasteBinary, hasToken: !!restoreToken },
+        "Attempting linux-fast-paste wtype direct text",
+        { binary: fastPasteBinary, textLength: text?.length },
         "clipboard"
       );
 
@@ -430,29 +424,14 @@ class ClipboardManager {
       }, 15000); // Portal may show a user dialog, allow more time
 
       proc.on("close", (code) => {
-        if (timedOut) return reject(new Error("linux-fast-paste --portal timed out"));
+        if (timedOut) return reject(new Error("linux-fast-paste wtype timed out"));
         clearTimeout(timeoutId);
         if (code === 0) {
-          const newToken = stdout.trim();
-          if (newToken) {
-            this._savePortalToken(newToken);
-          }
-          // Exit 0 without token: dialog was dismissed without approving (e.g. clicked outside).
-          // Reject with a recognizable message so the caller can retry.
-          if (!restoreToken && !newToken) {
-            reject(new Error("portal-dismissed"));
-            return;
-          }
-          resolve(newToken || null);
-        } else if (code === 3) {
-          // User explicitly clicked "Deny" in the portal dialog.
-          reject(new Error("portal-denied"));
-        } else if (code === 5) {
-          reject(new Error("portal support not compiled in"));
+          resolve();
         } else {
           reject(
             new Error(
-              `linux-fast-paste --portal exited with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`
+              `linux-fast-paste exited with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`
             )
           );
         }
@@ -1211,14 +1190,12 @@ class ClipboardManager {
         });
 
       if (isWayland) {
-        const tryUinputPaste = async () => {
-          const args = ["--uinput"];
-          if (earlyIsTerminal) args.push("--terminal");
-          await spawnFastPaste(args, "uinput");
-          this.safeLog("✅ Paste successful using native linux-fast-paste (uinput)");
+        const tryWtypePaste = async () => {
+          await spawnFastPaste([text], "wtype");
+          this.safeLog("✅ Paste successful using linux-fast-paste (wtype)");
           debugLogger.info(
             "Paste successful",
-            { tool: "linux-fast-paste", method: "uinput", detectedWindowClass },
+            { tool: "linux-fast-paste", method: "wtype", detectedWindowClass },
             "clipboard"
           );
           restoreClipboard();
@@ -1228,11 +1205,11 @@ class ClipboardManager {
           const MAX_PORTAL_RETRIES = 3;
           for (let attempt = 0; attempt < MAX_PORTAL_RETRIES; attempt++) {
             try {
-              const portalResult = await this._runPortalPaste(linuxFastPaste, earlyIsTerminal);
-              this.safeLog("✅ Paste successful using linux-fast-paste --portal (RemoteDesktop)");
+              await this._runPortalPaste(linuxFastPaste, text);
+              this.safeLog("✅ Paste successful using linux-fast-paste (wtype)");
               debugLogger.info(
                 "Paste successful",
-                { tool: "linux-fast-paste", method: "portal", token: !!portalResult },
+                { tool: "linux-fast-paste", method: "wtype" },
                 "clipboard"
               );
               restoreClipboard();
@@ -1254,11 +1231,11 @@ class ClipboardManager {
                   "clipboard"
                 );
               } else {
-                debugLogger.warn(
-                  "linux-fast-paste --portal failed, falling back",
-                  { error: portalError?.message },
-                  "clipboard"
-                );
+              debugLogger.warn(
+                "linux-fast-paste wtype failed, falling back",
+                { error: portalError?.message },
+                "clipboard"
+              );
               }
               return false;
             }
@@ -1271,21 +1248,21 @@ class ClipboardManager {
         // GNOME: uinput first because the portal often times out or shows a
         // confusing permission dialog, causing a 10s+ delay (issue #494).
         if (isKde && linuxFastPaste && !this.portalDenied) {
-          if (await tryPortalPaste()) return "portal";
+          if (await tryPortalPaste()) return "wtype";
           try {
-            await tryUinputPaste();
-            return "uinput";
-          } catch (uinputError) {
-            debugLogger.warn("uinput paste failed", { error: uinputError?.message }, "clipboard");
+            await tryWtypePaste();
+            return "wtype";
+          } catch (wtypeError) {
+            debugLogger.warn("wtype paste failed", { error: wtypeError?.message }, "clipboard");
           }
         } else if (isGnome && linuxFastPaste) {
           try {
-            await tryUinputPaste();
-            return "uinput";
-          } catch (uinputError) {
+            await tryWtypePaste();
+            return "wtype";
+          } catch (wtypeError) {
             debugLogger.warn(
-              "uinput paste failed on GNOME, trying portal",
-              { error: uinputError?.message },
+              "wtype paste failed on GNOME, trying portal",
+              { error: wtypeError?.message },
               "clipboard"
             );
           }
@@ -1302,24 +1279,20 @@ class ClipboardManager {
 
         // XTest/XWayland fallback: works for XWayland apps on any Wayland compositor
         if (xwaylandAvailable) {
-          const xtestArgs = [];
-          if (targetWindowId) xtestArgs.push("--window", targetWindowId);
-          if (earlyIsTerminal) xtestArgs.push("--terminal");
-
           try {
-            await spawnFastPaste(xtestArgs, "XTest/XWayland fallback");
-            this.safeLog("✅ Paste successful using native linux-fast-paste (XTest/XWayland)");
+            await spawnFastPaste([text], "wtype fallback");
+            this.safeLog("✅ Paste successful using linux-fast-paste (wtype fallback)");
             debugLogger.info(
               "Paste successful",
-              { tool: "linux-fast-paste", method: "xtest-xwayland" },
+              { tool: "linux-fast-paste", method: "wtype-fallback" },
               "clipboard"
             );
             restoreClipboard();
-            return "xtest-xwayland";
-          } catch (xtestError) {
+            return "wtype-fallback";
+          } catch (wtypeError) {
             debugLogger.warn(
-              "XTest/XWayland fallback also failed",
-              { error: xtestError?.message },
+              "Wtype fallback also failed",
+              { error: wtypeError?.message },
               "clipboard"
             );
           }
@@ -1327,20 +1300,16 @@ class ClipboardManager {
 
         this.safeLog("⚠️ Native linux-fast-paste failed, falling back to system tools");
       } else {
-        const xtestArgs = [];
-        if (targetWindowId) xtestArgs.push("--window", targetWindowId);
-        if (earlyIsTerminal) xtestArgs.push("--terminal");
-
         try {
-          await spawnFastPaste(xtestArgs, "XTest");
-          this.safeLog("✅ Paste successful using native linux-fast-paste (XTest)");
+          await spawnFastPaste([text], "wtype");
+          this.safeLog("✅ Paste successful using linux-fast-paste (wtype)");
           debugLogger.info(
             "Paste successful",
-            { tool: "linux-fast-paste", method: "xtest" },
+            { tool: "linux-fast-paste", method: "wtype" },
             "clipboard"
           );
           restoreClipboard();
-          return "xtest";
+          return "wtype";
         } catch (error) {
           this.safeLog(
             `⚠️ Native linux-fast-paste failed: ${error?.message || error}, falling back to system tools`
