@@ -929,7 +929,11 @@ registerProcessor("pcm-streaming-processor", PCMStreamingProcessor);
   }
 
   async processTranscription(text, source) {
-    const normalizedText = typeof text === "string" ? text.trim() : "";
+    // Normalize whitespace: replace newlines with spaces and collapse multiple spaces
+    // This ensures consistent formatting regardless of transcription provider
+    const normalizedText = typeof text === "string"
+      ? text.replace(/\n/g, " ").replace(/\s+/g, " ").trim()
+      : "";
 
     if (!normalizedText) {
       logger.logReasoning("TRANSCRIPTION_EMPTY_SKIPPING_REASONING", {
