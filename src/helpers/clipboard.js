@@ -664,7 +664,7 @@ class ClipboardManager {
         }
         await this.pasteWindows(originalClipboard);
       } else {
-        method = (await this.pasteLinux(originalClipboard, options)) || "linux-tools";
+        method = (await this.pasteLinux(originalClipboard, options, text)) || "linux-tools";
       }
 
       this.safeLog("✅ Paste operation complete", {
@@ -1060,7 +1060,7 @@ class ClipboardManager {
     });
   }
 
-  async pasteLinux(originalClipboard, options = {}) {
+  async pasteLinux(originalClipboard, options = {}, text = null) {
     const { isWayland, xwaylandAvailable, isGnome, isKde, isWlroots } = getLinuxSessionInfo();
     const webContents = options.webContents;
     const xdotoolExists = this.commandExists("xdotool");
@@ -1411,13 +1411,13 @@ class ClipboardManager {
     }
     const wtypeEntry = canUseWtype ? [{ cmd: "wtype", args: wtypeArgs }] : [];
 
-    // Add wtype-paste script as fallback for Wayland
+    // Add wtype-paste script as fallback for Wayland - pass text directly as argument
     const wtypePasteScript = isWayland ? this.resolveWtypePasteScript() : null;
     const wtypePasteEntry = wtypePasteScript
       ? [
           {
             cmd: wtypePasteScript,
-            args: inTerminal ? ["--terminal"] : [],
+            args: text ? [text] : [],
             isScript: true,
           },
         ]
@@ -1471,9 +1471,10 @@ class ClipboardManager {
             "clipboard"
           );
 
-          // For wtype-paste script, pass clipboard text via stdin
-          const textToPaste = tool.isScript ? clipboard.readText() : null;
-          const spawnOptions = tool.isScript && textToPaste ? { input: textToPaste } : {};
+          // For wtype-paste script, text is passed as argument (already in tool.args)
+          // For other scripts that need stdin, use clipboard
+          const textToPaste = (tool.isScript && !tool.args?.length) ? clipboard.readText() : null;
+          const spawnOptions = textToPaste ? { input: textToPaste } : {};
           const proc = spawn(tool.cmd, tool.args, spawnOptions);
           let stderr = "";
           let stdout = "";
