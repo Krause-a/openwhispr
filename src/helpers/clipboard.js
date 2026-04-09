@@ -279,6 +279,10 @@ class ClipboardManager {
       ].forEach((candidate) => candidates.add(candidate));
     }
 
+    // Debug: log all candidates being checked
+    const candidateArray = Array.from(candidates);
+    debugLogger.debug("Checking wtype script candidates", { candidates: candidateArray, __dirname }, "clipboard");
+
     for (const candidate of candidates) {
       try {
         const stats = fs.statSync(candidate);
@@ -292,12 +296,13 @@ class ClipboardManager {
           debugLogger.debug("Found wtype script", { path: candidate }, "clipboard");
           return candidate;
         }
-      } catch {
+      } catch (e) {
+        debugLogger.debug("Wtype script candidate not found", { path: candidate, error: e.message }, "clipboard");
         continue;
       }
     }
 
-    debugLogger.debug("wtype script not found", {}, "clipboard");
+    debugLogger.error("wtype script not found in any location", { checked: candidateArray }, "clipboard");
     return null;
   }
 
@@ -1139,18 +1144,6 @@ class ClipboardManager {
       "clipboard"
     );
 
-    const restoreClipboard = () => {
-      if (originalClipboard == null) return;
-      const delay = isKde && isWayland ? RESTORE_DELAYS.linux_kde_wayland : RESTORE_DELAYS.linux;
-      setTimeout(() => {
-        if (isWayland && originalClipboard.type === "text") {
-          this._writeClipboardWayland(originalClipboard.data, webContents);
-        } else {
-          this._restoreClipboard(originalClipboard);
-        }
-      }, delay);
-    };
-
     // Try wtype script (direct text typing without clipboard)
     if (wtypeScript && text) {
       try {
@@ -1161,7 +1154,6 @@ class ClipboardManager {
           { tool: "wtype-script" },
           "clipboard"
         );
-        restoreClipboard();
         return "wtype-script";
       } catch (error) {
         debugLogger.error("wtype script failed", { error: error.message }, "clipboard");
