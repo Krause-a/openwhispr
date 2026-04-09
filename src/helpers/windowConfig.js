@@ -14,18 +14,14 @@ const MAIN_OVERLAY_TYPE =
   process.platform === "darwin"
     ? "panel"
     : process.platform === "linux"
-      ? isGnomeWayland || isKDEWayland
-        ? "normal"
-        : "toolbar"
+      ? "normal"
       : "normal";
 
 const FLOATING_OVERLAY_TYPE =
   process.platform === "darwin"
     ? "panel"
     : process.platform === "linux"
-      ? isKDEWayland
-        ? "normal"
-        : "toolbar"
+      ? "normal"
       : "normal";
 
 const WINDOW_SIZES = {
